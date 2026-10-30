@@ -353,4 +353,41 @@ ProfileCheck("unexpected profile category uses unknown denial",
     WindowsNetworkProfileProbe.Parse(expectedProfileIndex,
         "[{\"InterfaceIndex\":17,\"Category\":\"Private \"}]").Reason == "unknown_or_invalid_profile_category");
 
-Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile + firewall + epoch + auth).");
+// ActiveStore Private Firewall baseline: an observation is never proof that
+// a remote listener is safe to expose. Allow rules can override default block.
+void BaselineCheck(string label, bool condition)
+{
+    if (!condition) throw new Exception("Firewall baseline failed: " + label);
+    Console.WriteLine("PASS firewall baseline " + label);
+    passed++;
+}
+var baselineJson = """[{"Name":"Private","Enabled":"True","DefaultInboundAction":"Block","AllowInboundRules":"True"}]""";
+bool Baseline(string json) => WindowsFirewallProfileProbe.Parse(json).Observed;
+BaselineCheck("canonical blocked inbound profile observed", Baseline(baselineJson));
+BaselineCheck("disabled inbound rules still not evidence of full WFP",
+    Baseline(baselineJson.Replace("\"AllowInboundRules\":\"True\"", "\"AllowInboundRules\":\"False\"")));
+BaselineCheck("wrong public profile rejected",
+    !Baseline(baselineJson.Replace("\"Name\":\"Private\"", "\"Name\":\"Public\"")));
+BaselineCheck("disabled firewall rejected",
+    !Baseline(baselineJson.Replace("\"Enabled\":\"True\"", "\"Enabled\":\"False\"")));
+BaselineCheck("open default inbound rejected",
+    !Baseline(baselineJson.Replace("\"DefaultInboundAction\":\"Block\"", "\"DefaultInboundAction\":\"Allow\"")));
+BaselineCheck("unspecified inbound rejected",
+    !Baseline(baselineJson.Replace("\"DefaultInboundAction\":\"Block\"", "\"DefaultInboundAction\":\"NotConfigured\"")));
+BaselineCheck("unrecognized rule setting rejected",
+    !Baseline(baselineJson.Replace("\"AllowInboundRules\":\"True\"", "\"AllowInboundRules\":\"NotConfigured\"")));
+BaselineCheck("missing firewall profile rejected", !Baseline("[]"));
+BaselineCheck("duplicate profiles rejected", !Baseline("[" + baselineJson[1..^1] + "," + baselineJson[1..^1] + "]"));
+BaselineCheck("object without array rejected", !Baseline(baselineJson[1..^1]));
+BaselineCheck("malformed JSON rejected", !Baseline("{"));
+BaselineCheck("missing inbound field rejected",
+    !Baseline(baselineJson.Replace("\"DefaultInboundAction\":\"Block\",", "")));
+BaselineCheck("boolean property type rejected",
+    !Baseline(baselineJson.Replace("\"Enabled\":\"True\"", "\"Enabled\":true")));
+BaselineCheck("near match of DefaultInboundAction rejected",
+    !Baseline(baselineJson.Replace("\"DefaultInboundAction\":\"Block\"", "\"DefaultInboundAction\":\"Block \"")));
+BaselineCheck("huge output rejected", !Baseline(new string('A', 4097)));
+BaselineCheck("real OS query cannot be misinterpreted as authorization",
+    !Evaluate(request, WindowsAdapterInventory.BuildUnverified([observed])).Allowed);
+
+Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile + firewall + epoch + auth + firewall baseline).");
