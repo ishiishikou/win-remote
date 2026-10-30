@@ -38,3 +38,6 @@ jobs:
       - name: Execute Windows diagnostic smoke (no network changes)
         if: runner.os == 'Windows'
         run: dotnet run --project agent/WinRemote.Diagnostics/WinRemote.Diagnostics.csproj --configuration Release --no-build -- --local-diagnostic
+      - name: Execute Windows inbound allow inventory smoke (read-only)
+        if: runner.os == 'Windows'
+        run: dotnet run --project agent/WinRemote.Diagnostics/WinRemote.Diagnostics.csproj --configuration Release --no-build -- --audit-inbound-rules
