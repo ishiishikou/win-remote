@@ -125,5 +125,5 @@ test("registration requires secure context and never uses remote origin", async 
   }
   assert.deepEqual(await register(false, true), []);
   assert.deepEqual(await register(true, false), []);
-  assert.deepEqual(await register(true, true), [["./sw.js", {scope:"./"}]]);
+  assert.equal(JSON.stringify(await register(true, true)), JSON.stringify([["./sw.js", {scope:"./"}]]));
 });
