@@ -144,7 +144,14 @@ internal sealed class OneTimeWebSocketTicketRegistry : IDisposable
         System.Net.IPAddress.TryParse(endpoint.LocalIpv4, out var parsed) &&
         parsed.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork &&
         parsed.ToString() == endpoint.LocalIpv4 &&
+        IsPrivateRfc1918(parsed.GetAddressBytes()) &&
         endpoint.Port is >= 1024 and <= 65535;
+
+    private static bool IsPrivateRfc1918(byte[] bytes) =>
+        bytes.Length == 4 &&
+        (bytes[0] == 10 ||
+         (bytes[0] == 172 && bytes[1] is >= 16 and <= 31) ||
+         (bytes[0] == 192 && bytes[1] == 168));
 
     private static bool IsSupportedChannel(Channel channel) =>
         channel is Channel.Terminal or Channel.Screen;
