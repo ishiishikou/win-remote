@@ -147,9 +147,15 @@ public static class WindowsNetworkProfileProbe
             profiles[0] is null || profiles[0].InterfaceIndex != expectedIndex)
             return ProbeResult.Deny("ambiguous_or_mismatched_profile");
 
-        if (!string.Equals(profiles[0].Category, "Private", StringComparison.Ordinal))
-            return ProbeResult.Deny("not_private");
-
-        return new ProbeResult(true, "private_profile_observed_only");
+        // Only a literal Private category is eligible even as diagnostic data.
+        // Report other known NLM categories without exposing NetworkName/SSID.
+        // Unknown or malformed values remain denied and unclassified.
+        return profiles[0].Category switch
+        {
+            "Private" => new ProbeResult(true, "private_profile_observed_only"),
+            "Public" => ProbeResult.Deny("public_profile_observed"),
+            "DomainAuthenticated" => ProbeResult.Deny("domain_authenticated_profile_observed"),
+            _ => ProbeResult.Deny("unknown_or_invalid_profile_category")
+        };
     }
 }
