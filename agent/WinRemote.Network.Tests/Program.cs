@@ -740,6 +740,24 @@ TicketCheck("missing privileged window cannot receive ticket",
     IssueTicket(sessionState: normal with { PrivilegeWindowAge = null }) is null);
 TicketCheck("invalid endpoint cannot issue ticket",
     IssueTicket(endpoint: new BrowserRequestBoundary.Endpoint("0.0.0.0", 443)) is null);
+TicketCheck("nonprivate IPv4 cannot issue ticket",
+    IssueTicket(endpoint: new BrowserRequestBoundary.Endpoint("8.8.8.8", 8443)) is null);
+TicketCheck("wildcard address cannot issue ticket",
+    IssueTicket(endpoint: new BrowserRequestBoundary.Endpoint("0.0.0.0", 8443)) is null);
+TicketCheck("loopback cannot issue ticket",
+    IssueTicket(endpoint: new BrowserRequestBoundary.Endpoint("127.0.0.1", 8443)) is null);
+TicketCheck("RFC1918 172.16/12 allowed when otherwise trusted",
+    IssueTicket(endpoint: new BrowserRequestBoundary.Endpoint("172.19.2.5", 8443)) is not null);
+var raceTicket = IssueTicket()!;
+int raceAccepted = 0;
+System.Threading.Tasks.Parallel.For(0, 24, _ =>
+{
+    if (ConsumeTicket(raceTicket.Secret, ticketClock + TimeSpan.FromSeconds(1)))
+        System.Threading.Interlocked.Increment(ref raceAccepted);
+});
+TicketCheck("concurrent replay can only succeed once", raceAccepted == 1);
+TicketCheck("parallel winner consumes ticket permanently",
+    !ConsumeTicket(raceTicket.Secret));
 TicketCheck("negative monotonic uptime rejected",
     IssueTicket(when: TimeSpan.FromTicks(-1)) is null);
 TicketCheck("screen requires independent PC approval",
