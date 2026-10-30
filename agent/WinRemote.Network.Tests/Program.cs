@@ -342,15 +342,15 @@ AuthCheck("disposed registry cannot enroll again",
 
 ProfileCheck("Public category emits specific non-identifying denial",
     WindowsNetworkProfileProbe.Parse(expectedProfileIndex,
-        "[{\\"InterfaceIndex\\":17,\\"Category\\":\\"Public\\"}]").Reason == "public_profile_observed");
+        "[{\"InterfaceIndex\":17,\"Category\":\"Public\"}]").Reason == "public_profile_observed");
 ProfileCheck("DomainAuthenticated emits specific non-identifying denial",
     WindowsNetworkProfileProbe.Parse(expectedProfileIndex,
-        "[{\\"InterfaceIndex\\":17,\\"Category\\":\\"DomainAuthenticated\\"}]").Reason == "domain_authenticated_profile_observed");
+        "[{\"InterfaceIndex\":17,\"Category\":\"DomainAuthenticated\"}]").Reason == "domain_authenticated_profile_observed");
 ProfileCheck("unexpected profile category never grants access",
     !WindowsNetworkProfileProbe.Parse(expectedProfileIndex,
-        "[{\\"InterfaceIndex\\":17,\\"Category\\":\\"Private \\"}]").IsPrivate);
+        "[{\"InterfaceIndex\":17,\"Category\":\"Private \"}]").IsPrivate);
 ProfileCheck("unexpected profile category uses unknown denial",
     WindowsNetworkProfileProbe.Parse(expectedProfileIndex,
-        "[{\\"InterfaceIndex\\":17,\\"Category\\":\\"Private \\"}]").Reason == "unknown_or_invalid_profile_category");
+        "[{\"InterfaceIndex\":17,\"Category\":\"Private \"}]").Reason == "unknown_or_invalid_profile_category");
 
 Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile + firewall + epoch + auth).");
