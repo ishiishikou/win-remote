@@ -107,6 +107,22 @@ Get-NetFirewallProfile -PolicyStore ActiveStore -Name Private | Select-Object Na
 
 Do **not** run `Set-NetFirewallProfile`, `New-NetFirewallRule`, or port-opening commands as part of this check. See [Microsoft documentation](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallprofile) for `ActiveStore` semantics. The .NET console harness now contains **135 checks** (119 prior checks plus 16 new Firewall baseline checks), passing in Linux .NET10 and GitHub-hosted Windows/Ubuntu CI.
 
+## Read-only ActiveStore inbound allow-rule inventory (G3-L)
+
+The Windows Home's actual Private Firewall baseline was observed with `Enabled=True`, `DefaultInboundAction=Block`, and `AllowInboundRules=True`. This means **specific enabled inbound Allow rules may override the default inbound block**; it does not mean all connections are permitted.
+
+`WindowsInboundAllowInventory.Read()` uses a fixed read-only PowerShell query against Windows Firewall `ActiveStore` and reports only aggregate counts of enabled inbound Allow rules, potentially Private-applicable rules, rules with unrestricted remote addresses, and rules whose remote scope could not be classified. No rule names, application paths, interface aliases, IP addresses, SSIDs or hostnames are returned. The query is bounded to 15 seconds and any error results in `Observed=false`. Its selection of Private-applicable rules is deliberately only a **coarse heuristic**, not an authoritative proof of packet paths.
+
+The new opt-in diagnostics command is:
+
+```powershell
+.\WinRemote.Diagnostics.exe --audit-inbound-rules
+```
+
+This command is present only in an executable built from the newer code; the previous downloaded artifact does not support it. **A successful result is purely informational.** The output always says `G3_READY=false`, `effective_firewall_verified=false` and `network_listener_started=false`. Other rules can be scoped by protocol, port, app, interface or network condition, so these counts cannot establish a future application's exposure; a zero count cannot prove that third-party WFP providers are inactive. Do not create or modify any firewall rule based on these counts.
+
+14 negative/positive parser tests were added, bringing the full harness to **149 checks**. The actual Windows API behavior is separately evaluated through the Windows CI job; the Windows Home PC has not yet run this optional survey.
+
 ## Decision contract
 
 Inputs:
