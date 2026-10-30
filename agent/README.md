@@ -45,6 +45,14 @@ Documentation: [Get-NetConnectionProfile](https://learn.microsoft.com/en-us/powe
 
 Microsoft documentation: [Get-NetFirewallRule](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallrule), [Get-NetFirewallPortFilter](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallportfilter), [Get-NetFirewallAddressFilter](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewalladdressfilter).
 
+## Revocable network epoch guard (G3-G)
+
+`NetworkEpochGuard` defaults to denied and has **no public activation method**. Its assembly-internal `BeginVerifiedEpoch` requires a passing `NetworkBoundaryPolicy` evaluation; failed revalidation revokes existing leases. Every invalidation increments a generation and cancels previously issued `CancellationToken` leases. Callback cancellation takes place outside the internal lock so a callback cannot deadlock by reentering the guard. Disposing a guard prevents future activation.
+
+`NetworkEventInvalidator` subscribes to Windows network address and availability change notifications and immediately invalidates the active epoch. Registration failure, deregistration, unknown state, and event handling all err toward closing access. **Events are only invalidation hints**; they can miss Firewall/profile changes, so they never set `MachineEvidence.NetworkChangeMonitorActive` or claim continuous protection. An eventual host must also poll verified OS state and abort all sockets/requests on invalidation. A revoked lease cannot be reused.
+
+15 epoch/cancellation checks added, bringing the test harness to **93 checks**. These are logic checks; no network listener, live Firewall enforcement, pairing or Windows Home device tests are present.
+
 ## Decision contract
 
 Inputs:
