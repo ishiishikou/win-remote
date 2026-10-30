@@ -1,16 +1,8 @@
 name: Windows agent network-boundary tests
 
+# Manual only until GitHub-hosted runners for this private repo are available.
+# Regular validation is done by the agent/README.md commands on isolated test hosts.
 on:
-  push:
-    branches:
-      - feat/g3-network-boundary
-    paths:
-      - 'agent/**'
-      - '.github/workflows/network-boundary.yml'
-  pull_request:
-    paths:
-      - 'agent/**'
-      - '.github/workflows/network-boundary.yml'
   workflow_dispatch:
 
 permissions:
