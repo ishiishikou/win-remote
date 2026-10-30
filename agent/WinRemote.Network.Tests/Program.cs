@@ -648,4 +648,117 @@ PairCheck("disposed issuer cannot create another code",
 PairCheck("negative uptime cannot issue a code",
     new LocalPairingCodeWindow().BeginLocally(TimeSpan.FromSeconds(-1)) is null);
 
-Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile + firewall + epoch + auth + baseline + survey + HTTP + session + pairing).");
+// Upgrade tickets are internal, bounded, tied to a PC-approved active session,
+// and can be consumed exactly once over the authenticated TLS request path.
+void TicketCheck(string title, bool result)
+{
+    if (!result) throw new Exception("WS ticket failed: " + title);
+    Console.WriteLine("PASS ticket " + title);
+    passed++;
+}
+using var tickets = new OneTimeWebSocketTicketRegistry();
+using var ticketGate = new NetworkEpochGuard();
+var ticketLease = ticketGate.BeginVerifiedEpoch(request, evidence)!;
+var deviceForTicket = Guid.NewGuid();
+var sessionForTicket = Guid.NewGuid();
+var ticketClock = TimeSpan.FromHours(3);
+var ticketOrigin = "https://10.246.73.20:8443";
+var channel = OneTimeWebSocketTicketRegistry.Channel.Terminal;
+OneTimeWebSocketTicketRegistry.IssuedTicket? IssueTicket(
+    TimeSpan? when = null,
+    LocalSessionBoundary.MonotonicSnapshot? sessionState = null,
+    NetworkEpochGuard.Lease? lease = null,
+    OneTimeWebSocketTicketRegistry.Channel? requestedChannel = null,
+    BrowserRequestBoundary.Endpoint? endpoint = null) =>
+    tickets.Issue(deviceForTicket, sessionForTicket,
+        endpoint ?? browserEndpoint, requestedChannel ?? channel,
+        when ?? ticketClock, sessionState ?? normal, ticketGate, lease ?? ticketLease);
+bool ConsumeTicket(string? token, TimeSpan? when = null, Guid? device = null,
+    Guid? sessionId = null, string? origin = null,
+    OneTimeWebSocketTicketRegistry.Channel? requestedChannel = null,
+    LocalSessionBoundary.MonotonicSnapshot? state = null,
+    NetworkEpochGuard.Lease? lease = null) =>
+    tickets.TryConsume(token, device ?? deviceForTicket, sessionId ?? sessionForTicket,
+        origin ?? ticketOrigin, requestedChannel ?? channel, when ?? ticketClock,
+        state ?? normal, ticketGate, lease ?? ticketLease);
+var issuedTicket = IssueTicket()!;
+TicketCheck("CSPRNG 256-bit token has unpadded canonical Base64URL shape",
+    issuedTicket.Secret.Length == 43 &&
+    issuedTicket.Secret.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'));
+TicketCheck("one-use ticket accepted for matching session and channel",
+    ConsumeTicket(issuedTicket.Secret, ticketClock + TimeSpan.FromSeconds(1)));
+TicketCheck("replayed consumed token rejected",
+    !ConsumeTicket(issuedTicket.Secret, ticketClock + TimeSpan.FromSeconds(2)));
+var wrongContextTicket = IssueTicket()!;
+TicketCheck("wrong device rejected",
+    !ConsumeTicket(wrongContextTicket.Secret, device: Guid.NewGuid()));
+TicketCheck("wrong session rejected",
+    !ConsumeTicket(wrongContextTicket.Secret, sessionId: Guid.NewGuid()));
+TicketCheck("wrong Origin rejected",
+    !ConsumeTicket(wrongContextTicket.Secret, origin: "https://evil.invalid"));
+TicketCheck("wrong channel rejected",
+    !ConsumeTicket(wrongContextTicket.Secret,
+        requestedChannel: OneTimeWebSocketTicketRegistry.Channel.Screen));
+TicketCheck("correct holder still accepted before fifth failed attempt",
+    ConsumeTicket(wrongContextTicket.Secret));
+var expiringTicket = IssueTicket()!;
+TicketCheck("expiry exactly at thirty seconds rejected",
+    !ConsumeTicket(expiringTicket.Secret, ticketClock + TimeSpan.FromSeconds(30)));
+TicketCheck("expired ticket cannot be reused at previous timestamp",
+    !ConsumeTicket(expiringTicket.Secret, ticketClock));
+var clockRollbackTicket = IssueTicket()!;
+TicketCheck("monotonic clock rollback rejected",
+    !ConsumeTicket(clockRollbackTicket.Secret, ticketClock - TimeSpan.FromTicks(1)));
+TicketCheck("rollback permanently invalidates ticket",
+    !ConsumeTicket(clockRollbackTicket.Secret));
+var blockedTicket = IssueTicket()!;
+for (int badAttempt = 0; badAttempt < 5; badAttempt++)
+{
+    TicketCheck("invalid token attempt " + (badAttempt + 1) + " rejected",
+        !ConsumeTicket("invalid!"));
+}
+TicketCheck("five invalid attempts revoke previously correct ticket",
+    !ConsumeTicket(blockedTicket.Secret));
+var ticketA = IssueTicket()!;
+var ticketB = IssueTicket()!;
+TicketCheck("reissue uses distinct secrets",
+    ticketA.Secret != ticketB.Secret);
+TicketCheck("reissue invalidates former secret",
+    !ConsumeTicket(ticketA.Secret));
+TicketCheck("current reissued secret still accepted",
+    ConsumeTicket(ticketB.Secret));
+TicketCheck("unapproved PC Shell feature cannot receive ticket",
+    IssueTicket(sessionState: normal with { PcLocallyApprovedShell = false }) is null);
+TicketCheck("revoked session cannot receive ticket",
+    IssueTicket(sessionState: normal with { SessionRevoked = true }) is null);
+TicketCheck("expired session cannot receive ticket",
+    IssueTicket(sessionState: normal with { SessionAge = TimeSpan.FromHours(8) }) is null);
+TicketCheck("missing privileged window cannot receive ticket",
+    IssueTicket(sessionState: normal with { PrivilegeWindowAge = null }) is null);
+TicketCheck("invalid endpoint cannot issue ticket",
+    IssueTicket(endpoint: new BrowserRequestBoundary.Endpoint("0.0.0.0", 443)) is null);
+TicketCheck("negative monotonic uptime rejected",
+    IssueTicket(when: TimeSpan.FromTicks(-1)) is null);
+TicketCheck("screen requires independent PC approval",
+    IssueTicket(requestedChannel: OneTimeWebSocketTicketRegistry.Channel.Screen) is null);
+var screenTicket = IssueTicket(requestedChannel: OneTimeWebSocketTicketRegistry.Channel.Screen,
+    sessionState: normal with { PcLocallyApprovedScreen = true })!;
+TicketCheck("screen ticket is channel specific",
+    !ConsumeTicket(screenTicket.Secret, requestedChannel: channel,
+        state: normal with { PcLocallyApprovedScreen = true }));
+TicketCheck("screen ticket consumed only for approved screen",
+    ConsumeTicket(screenTicket.Secret,
+        requestedChannel: OneTimeWebSocketTicketRegistry.Channel.Screen,
+        state: normal with { PcLocallyApprovedScreen = true }));
+var revokedTicket = IssueTicket()!;
+ticketGate.Invalidate();
+TicketCheck("network epoch revocation makes token unusable",
+    !ConsumeTicket(revokedTicket.Secret));
+TicketCheck("invalid network epoch cannot issue more tickets",
+    IssueTicket() is null);
+tickets.Revoke();
+tickets.Dispose();
+TicketCheck("disposed registry refuses all new tickets",
+    IssueTicket() is null);
+
+Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile + firewall + epoch + auth + baseline + survey + HTTP + session + pairing + WSS tickets).");
