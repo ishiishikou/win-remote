@@ -1,0 +1,49 @@
+name: Package read-only Windows Home diagnostics
+
+# Generate a temporary, self-contained package only when this workflow file
+# is explicitly changed on the development branch; avoid every-commit uploads.
+on:
+  push:
+    branches: [feat/g3-network-boundary]
+    paths:
+      - '.github/workflows/windows-diagnostic-package.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish self-contained unsigned diagnostic exe
+        shell: pwsh
+        run: >
+          dotnet publish agent/WinRemote.Diagnostics/WinRemote.Diagnostics.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:PublishTrimmed=false
+          -p:DebugType=none -p:DebugSymbols=false
+      - name: Smoke test diagnostic in denied mode
+        shell: pwsh
+        run: |
+          $exe = "agent/WinRemote.Diagnostics/bin/Release/net10.0/win-x64/publish/WinRemote.Diagnostics.exe"
+          & $exe --local-diagnostic
+          if ($LASTEXITCODE -ne 0) { throw "Diagnostics failed: $LASTEXITCODE" }
+      - name: Generate SHA256 checksum
+        shell: pwsh
+        run: |
+          $exe = "agent/WinRemote.Diagnostics/bin/Release/net10.0/win-x64/publish/WinRemote.Diagnostics.exe"
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  WinRemote.Diagnostics.exe" | Set-Content -Encoding ascii "agent/WinRemote.Diagnostics/bin/Release/net10.0/win-x64/publish/SHA256.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: winremote-readonly-diagnostics-win-x64
+          path: |
+            agent/WinRemote.Diagnostics/bin/Release/net10.0/win-x64/publish/WinRemote.Diagnostics.exe
+            agent/WinRemote.Diagnostics/bin/Release/net10.0/win-x64/publish/SHA256.txt
+          retention-days: 7
+          if-no-files-found: error
