@@ -581,4 +581,71 @@ SessionCheck("unknown capability denied", false,
 SessionCheck("session revoke also denies Shell", false,
     Session(normal with { SessionRevoked = true }, LocalSessionBoundary.Capability.Shell));
 
-Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile + firewall + epoch + auth + baseline + survey + HTTP + session).");
+// Pairing challenge must never authorize a device without a second
+// explicit local PC action. Synthetic monotonic times, no network API.
+void PairCheck(string name, bool result)
+{
+    if (!result) throw new Exception("Pairing boundary failed: " + name);
+    Console.WriteLine("PASS pairing " + name);
+    passed++;
+}
+using var pairing = new LocalPairingCodeWindow();
+var pairAt = TimeSpan.FromHours(2);
+var invitation = pairing.BeginLocally(pairAt)!;
+PairCheck("16-character RFC4648 uppercase Base32 code with 80-bit entropy shape",
+    invitation.DisplayCode.Length == 16 &&
+    invitation.DisplayCode.All(ch => "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".Contains(ch)));
+PairCheck("cannot confirm without submitted challenge",
+    !pairing.ConfirmLocally(invitation.Id, pairAt));
+PairCheck("wrong offer GUID is rejected without revoking correct offer",
+    !pairing.TryMatchCandidate(Guid.NewGuid(), invitation.DisplayCode, pairAt));
+PairCheck("wrong format consumes an attempt",
+    !pairing.TryMatchCandidate(invitation.Id, "invalid", pairAt));
+PairCheck("lowercase code rejected",
+    !pairing.TryMatchCandidate(invitation.Id, invitation.DisplayCode.ToLowerInvariant(), pairAt));
+PairCheck("first properly submitted code matched",
+    pairing.TryMatchCandidate(invitation.Id, invitation.DisplayCode, pairAt + TimeSpan.FromSeconds(10)));
+PairCheck("matching does not allow replay while pending PC approval",
+    !pairing.TryMatchCandidate(invitation.Id, invitation.DisplayCode, pairAt + TimeSpan.FromSeconds(11)));
+PairCheck("wrong ID cannot approve pending pairing",
+    !pairing.ConfirmLocally(Guid.NewGuid(), pairAt + TimeSpan.FromSeconds(15)));
+PairCheck("explicit local approval finalizes exactly once",
+    pairing.ConfirmLocally(invitation.Id, pairAt + TimeSpan.FromSeconds(15)));
+PairCheck("repeated PC approval is rejected",
+    !pairing.ConfirmLocally(invitation.Id, pairAt + TimeSpan.FromSeconds(16)));
+PairCheck("redeemed code is no longer usable",
+    !pairing.TryMatchCandidate(invitation.Id, invitation.DisplayCode, pairAt + TimeSpan.FromSeconds(16)));
+var expiredInvitation = pairing.BeginLocally(pairAt)!;
+PairCheck("code expires exactly at two-minute boundary",
+    !pairing.TryMatchCandidate(expiredInvitation.Id, expiredInvitation.DisplayCode,
+        pairAt + TimeSpan.FromMinutes(2)));
+var renewed = pairing.BeginLocally(pairAt)!;
+PairCheck("new pairing invalidates previous code",
+    !pairing.TryMatchCandidate(expiredInvitation.Id, expiredInvitation.DisplayCode, pairAt));
+PairCheck("renewed pairing has independent random code",
+    renewed.Id != expiredInvitation.Id && renewed.DisplayCode != expiredInvitation.DisplayCode);
+for (var n = 0; n < 5; n++)
+    PairCheck("incorrect attempt number " + (n + 1) + " rejected",
+        !pairing.TryMatchCandidate(renewed.Id, "AAAAAAAAAAAAAAAA", pairAt));
+PairCheck("five failed code attempts revoke offer",
+    !pairing.TryMatchCandidate(renewed.Id, renewed.DisplayCode, pairAt));
+var rollback = pairing.BeginLocally(pairAt)!;
+PairCheck("monotonic rollback fails closed",
+    !pairing.TryMatchCandidate(rollback.Id, rollback.DisplayCode, pairAt - TimeSpan.FromSeconds(1)));
+PairCheck("rollback permanently invalidates the challenged offer",
+    !pairing.TryMatchCandidate(rollback.Id, rollback.DisplayCode, pairAt));
+var abandoned = pairing.BeginLocally(pairAt)!;
+pairing.Invalidate();
+PairCheck("local cancel revokes challenge",
+    !pairing.TryMatchCandidate(abandoned.Id, abandoned.DisplayCode, pairAt));
+var after = pairing.BeginLocally(pairAt)!;
+PairCheck("new challenge after cancel can be confirmed when matched",
+    pairing.TryMatchCandidate(after.Id, after.DisplayCode, pairAt) &&
+    pairing.ConfirmLocally(after.Id, pairAt));
+pairing.Dispose();
+PairCheck("disposed issuer cannot create another code",
+    pairing.BeginLocally(pairAt) is null);
+PairCheck("negative uptime cannot issue a code",
+    new LocalPairingCodeWindow().BeginLocally(TimeSpan.FromSeconds(-1)) is null);
+
+Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile + firewall + epoch + auth + baseline + survey + HTTP + session + pairing).");
