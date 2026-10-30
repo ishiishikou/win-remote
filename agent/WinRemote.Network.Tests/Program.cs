@@ -109,4 +109,53 @@ VerifyInventory("live OS inventory cannot mark permission verified",
     !realInventory.NetworkChangeMonitorActive &&
     realInventory.Adapters.All(item => !item.IsPrivateProfileVerified));
 
-Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + read-only inventory).");
+// Windows NLM category is a read-only prerequisite, not a Firewall or auth grant.
+void ProfileCheck(string name, bool condition)
+{
+    if (!condition) throw new Exception("Profile failed: " + name);
+    Console.WriteLine("PASS profile " + name);
+    passed++;
+}
+const uint expectedProfileIndex = 17;
+ProfileCheck("exact matching Private category is observed",
+    WindowsNetworkProfileProbe.Parse(expectedProfileIndex,
+        "[{\"InterfaceIndex\":17,\"Category\":\"Private\"}]").IsPrivate);
+ProfileCheck("Public category is rejected",
+    !WindowsNetworkProfileProbe.Parse(expectedProfileIndex,
+        "[{\"InterfaceIndex\":17,\"Category\":\"Public\"}]").IsPrivate);
+ProfileCheck("DomainAuthenticated is not Private",
+    !WindowsNetworkProfileProbe.Parse(expectedProfileIndex,
+        "[{\"InterfaceIndex\":17,\"Category\":\"DomainAuthenticated\"}]").IsPrivate);
+ProfileCheck("mismatched interface index is rejected",
+    !WindowsNetworkProfileProbe.Parse(expectedProfileIndex,
+        "[{\"InterfaceIndex\":18,\"Category\":\"Private\"}]").IsPrivate);
+ProfileCheck("duplicate profiles rejected",
+    !WindowsNetworkProfileProbe.Parse(expectedProfileIndex,
+        "[{\"InterfaceIndex\":17,\"Category\":\"Private\"},{\"InterfaceIndex\":17,\"Category\":\"Private\"}]").IsPrivate);
+ProfileCheck("no profile rejected",
+    !WindowsNetworkProfileProbe.Parse(expectedProfileIndex, "[]").IsPrivate);
+ProfileCheck("single-object output rejected instead of accepting ambiguous schema",
+    !WindowsNetworkProfileProbe.Parse(expectedProfileIndex,
+        "{\"InterfaceIndex\":17,\"Category\":\"Private\"}").IsPrivate);
+ProfileCheck("invalid JSON rejected",
+    !WindowsNetworkProfileProbe.Parse(expectedProfileIndex, "not-json").IsPrivate);
+ProfileCheck("missing category rejected",
+    !WindowsNetworkProfileProbe.Parse(expectedProfileIndex,
+        "[{\"InterfaceIndex\":17}]").IsPrivate);
+ProfileCheck("case-altered category rejected",
+    !WindowsNetworkProfileProbe.Parse(expectedProfileIndex,
+        "[{\"InterfaceIndex\":17,\"Category\":\"private\"}]").IsPrivate);
+ProfileCheck("string interface index rejected",
+    !WindowsNetworkProfileProbe.Parse(expectedProfileIndex,
+        "[{\"InterfaceIndex\":\"17\",\"Category\":\"Private\"}]").IsPrivate);
+ProfileCheck("invalid zero interface index rejected",
+    !WindowsNetworkProfileProbe.Parse(0,
+        "[{\"InterfaceIndex\":0,\"Category\":\"Private\"}]").IsPrivate);
+ProfileCheck("null profile list rejected",
+    !WindowsNetworkProfileProbe.Evaluate(expectedProfileIndex, null).IsPrivate);
+ProfileCheck("unavailable adapter denied on any OS",
+    !WindowsNetworkProfileProbe.ReadForAdapter(Guid.Empty).IsPrivate);
+ProfileCheck("profile observation cannot override absent Firewall evidence",
+    !Evaluate(request, WindowsAdapterInventory.BuildUnverified([observed])).Allowed);
+
+Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile prerequisites).");
