@@ -1,0 +1,20 @@
+{
+  "name": "win-remote UI デモ（未接続）",
+  "short_name": "win-remote デモ",
+  "description": "Windowsへ接続しない、iPhone向け操作画面の設計デモ。",
+  "lang": "ja",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3f8f6",
+  "theme_color": "#075e57",
+  "icons": [
+    {
+      "src": "./icons/demo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
