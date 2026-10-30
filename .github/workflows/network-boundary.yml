@@ -2,7 +2,7 @@ name: Windows agent network-boundary tests
 
 on:
   push:
-    branches: [feat/g3-network-boundary]
+    branches: [main]
     paths:
       - 'agent/**'
       - '.github/workflows/network-boundary.yml'
@@ -11,6 +11,10 @@ on:
       - 'agent/**'
       - '.github/workflows/network-boundary.yml'
   workflow_dispatch:
+
+concurrency:
+  group: network-boundary-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
