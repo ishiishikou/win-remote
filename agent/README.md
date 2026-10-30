@@ -13,7 +13,9 @@ dotnet run --project agent/WinRemote.Network.Tests/WinRemote.Network.Tests.cspro
 
 No external NuGet packages or cloud services are required for these two projects. The console test harness includes positive/negative cases for allowed local subnet, wildcard/IPv6/public/CGNAT IPs, ambiguous NICs, down/virtual/Public NIC, missing Firewall/endpoint-inventory/monitor evidence, unusable prefix, address collision, and cross-subnet access.
 
-**Verification as of 2026-10-30:** source files added and inspected. The current execution environment has no .NET SDK, so **build and console tests have not been executed**. Do not mark G3 passed. Actual Windows Home testing remains necessary.
+**Verification as of 2026-10-30:** GitHub branch `feat/g3-network-boundary` source files were fetched through the GitHub connector into a dedicated Linux (Alpine 3.24) test directory. After installing .NET 10 SDK 10.0.303 in the test container, `dotnet build agent/WinRemote.Network.Tests/WinRemote.Network.Tests.csproj --configuration Release --nologo --ignore-failed-sources` succeeded with **0 warnings / 0 errors**, and `dotnet run --project agent/WinRemote.Network.Tests/WinRemote.Network.Tests.csproj --configuration Release --no-build` completed with **28 checks passed / exit code 0**. No Windows Home system or Firewall settings were changed. This verifies .NET policy logic on Linux only; **G3 is not passed** without Windows OS evidence and fail-closed runtime integration testing.
+
+A GitHub Actions Windows/Linux workflow was added, but the first hosted-runner run [#41068584932](https://github.com/ishiishikou/win-remote/actions/runs/41068584932) failed at runner startup before any steps or logs. It is **not evidence of code test failure or of Windows success**. To avoid repeated failed runs and potential private-repository minutes consumption, `.github/workflows/network-boundary.yml` is manual-only (`workflow_dispatch`) until the runner/platform issue is understood. The Windows OS build/test remains outstanding.
 
 ## Decision contract
 
