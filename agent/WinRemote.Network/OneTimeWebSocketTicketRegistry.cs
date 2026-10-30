@@ -108,7 +108,7 @@ internal sealed class OneTimeWebSocketTicketRegistry : IDisposable
                 string.Equals(requestOrigin, _expectedOrigin, StringComparison.Ordinal);
 
             // Token consists of 32 random bytes encoded in canonical Base64URL:
-            // exactly 43 characters, with the last alphabet index <= 16.
+            // exactly 43 characters, with the last 2 padding bits set to zero.
             bool validShape = IsCanonicalToken(suppliedSecret);
             byte[]? digest = validShape
                 ? SHA256.HashData(Encoding.ASCII.GetBytes(suppliedSecret!))
@@ -161,10 +161,10 @@ internal sealed class OneTimeWebSocketTicketRegistry : IDisposable
             return false;
 
         // Canonical unpadded Base64URL representing exactly 32 bytes. Last
-        // character has four padding bits zero (indices 0, 16, 32 or 48).
+        // character has two padding bits zero (index divisible by 4).
         const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
         int lastIndex = alphabet.IndexOf(token[42]);
-        return lastIndex >= 0 && (lastIndex & 15) == 0;
+        return lastIndex >= 0 && (lastIndex & 3) == 0;
     }
 
     private void ClearLocked()
