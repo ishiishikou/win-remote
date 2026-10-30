@@ -35,6 +35,16 @@ Only one exact matching `Private` category is reported as observed; `Public`, `D
 
 Documentation: [Get-NetConnectionProfile](https://learn.microsoft.com/en-us/powershell/module/netconnection/get-netconnectionprofile).
 
+## Windows Firewall ActiveStore shape audit (G3-F)
+
+`WindowsFirewallRuleAudit.Inspect(expected)` is **read-only**. On Windows it inspects the fixed named rule `WinRemote.LanOnly` from `Get-NetFirewallRule -PolicyStore ActiveStore` and its separate port, address, program and interface filters, using a fixed PowerShell query. The scope parser rejects non-Private/inbound/allow/active rules, wrong executable/interface, wildcard ports and addresses, subnet-wide remote access, non-TCP protocols, edge traversal, duplicates, missing rule and invalid response shapes. A successful inspection returns the reason `single_rule_shape_observed_not_effective_policy`.
+
+**This is diagnostic only.** It does *not* establish the complete effective Windows Filtering Platform policy (including other allow rules, policy conflicts, IPv6, third-party filtering and future changes), and it **never sets `ScopedFirewallRuleVerified` to true**. There is still no firewall rule installer or listener. Additional verified OS evidence and negative tests must exist before any real connection can be accepted.
+
+24 firewall audit cases were added, bringing the pure policy + NIC + profile + firewall diagnostic checks to **78**. They passed in the Linux test container using .NET 10. Windows GitHub-hosted runner results are separately tracked in [Issue #1](https://github.com/ishiishikou/win-remote/issues/1); the home Windows machine has not been inspected.
+
+Microsoft documentation: [Get-NetFirewallRule](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallrule), [Get-NetFirewallPortFilter](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallportfilter), [Get-NetFirewallAddressFilter](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewalladdressfilter).
+
 ## Decision contract
 
 Inputs:
