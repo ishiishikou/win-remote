@@ -1,8 +1,9 @@
 name: Package read-only Windows Home diagnostics
 
-# Generate a temporary, self-contained package only when this workflow file
-# is explicitly changed on the development branch; avoid every-commit uploads.
+# Package only when explicitly requested or when this workflow is updated;
+# do not upload a new executable on every development commit.
 on:
+  workflow_dispatch:
   push:
     branches: [feat/g3-network-boundary]
     paths:
