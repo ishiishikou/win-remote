@@ -33,3 +33,8 @@ jobs:
         run: dotnet build agent/WinRemote.Network.Tests/WinRemote.Network.Tests.csproj --configuration Release --nologo
       - name: Execute all positive and negative boundary checks
         run: dotnet run --project agent/WinRemote.Network.Tests/WinRemote.Network.Tests.csproj --configuration Release --no-build
+      - name: Build read-only diagnostics
+        run: dotnet build agent/WinRemote.Diagnostics/WinRemote.Diagnostics.csproj --configuration Release --nologo
+      - name: Execute Windows diagnostic smoke (no network changes)
+        if: runner.os == 'Windows'
+        run: dotnet run --project agent/WinRemote.Diagnostics/WinRemote.Diagnostics.csproj --configuration Release --no-build -- --local-diagnostic
