@@ -34,6 +34,12 @@ jobs:
           $exe = "agent/WinRemote.Diagnostics/bin/Release/net10.0/win-x64/publish/WinRemote.Diagnostics.exe"
           & $exe --local-diagnostic
           if ($LASTEXITCODE -ne 0) { throw "Diagnostics failed: $LASTEXITCODE" }
+      - name: Smoke test aggregate inbound allow inventory (read-only)
+        shell: pwsh
+        run: |
+          $exe = "agent/WinRemote.Diagnostics/bin/Release/net10.0/win-x64/publish/WinRemote.Diagnostics.exe"
+          & $exe --audit-inbound-rules
+          if ($LASTEXITCODE -ne 0) { throw "Read-only inventory failed: $LASTEXITCODE" }
       - name: Generate SHA256 checksum
         shell: pwsh
         run: |
