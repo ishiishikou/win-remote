@@ -51,6 +51,12 @@ for (int i = 0; i < candidates.Length; i++)
     }
 }
 Console.WriteLine("private_profiles_observed=" + privateObserved);
+// Diagnostic observation only: an enabled firewall with default inbound
+// Block may still have wide allow rules or third-party filtering.
+var firewallBaseline = WindowsFirewallProfileProbe.ReadPrivateBaseline();
+Console.WriteLine("private_firewall_baseline_observed=" +
+    (firewallBaseline.Observed ? "true" : "false"));
+Console.WriteLine("private_firewall_baseline_reason=" + firewallBaseline.Reason);
 Console.WriteLine("effective_firewall_verified=false");
 Console.WriteLine("continuous_monitor_verified=false");
 Console.WriteLine("device_authentication_verified=false");
