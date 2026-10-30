@@ -1,0 +1,51 @@
+name: Windows agent network-boundary tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'agent/**'
+      - '.github/workflows/network-boundary.yml'
+  pull_request:
+    paths:
+      - 'agent/**'
+      - '.github/workflows/network-boundary.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: network-boundary-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: .NET 10 policy (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build policy and test harness
+        run: dotnet build agent/WinRemote.Network.Tests/WinRemote.Network.Tests.csproj --configuration Release --nologo
+      - name: Execute all positive and negative boundary checks
+        run: dotnet run --project agent/WinRemote.Network.Tests/WinRemote.Network.Tests.csproj --configuration Release --no-build
+      - name: Build in-memory ASP.NET Core transport harness
+        run: dotnet build agent/WinRemote.Http.Tests/WinRemote.Http.Tests.csproj --configuration Release --nologo
+      - name: Verify HTTP transport spoofing negatives (no listener)
+        run: dotnet run --project agent/WinRemote.Http.Tests/WinRemote.Http.Tests.csproj --configuration Release --no-build
+      - name: Build read-only diagnostics
+        run: dotnet build agent/WinRemote.Diagnostics/WinRemote.Diagnostics.csproj --configuration Release --nologo
+      - name: Execute Windows diagnostic smoke (no network changes)
+        if: runner.os == 'Windows'
+        run: dotnet run --project agent/WinRemote.Diagnostics/WinRemote.Diagnostics.csproj --configuration Release --no-build -- --local-diagnostic
+      - name: Execute Windows inbound allow inventory smoke (read-only)
+        if: runner.os == 'Windows'
+        run: dotnet run --project agent/WinRemote.Diagnostics/WinRemote.Diagnostics.csproj --configuration Release --no-build -- --audit-inbound-rules
