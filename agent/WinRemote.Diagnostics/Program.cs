@@ -1,3 +1,26 @@
+// Optional, read-only coarse inbound Allow rule inventory. Return aggregate
+// counts only. A successful inventory never grants any network permission.
+if (args.Length == 1 && args[0] == "--audit-inbound-rules")
+{
+    var inventory = WindowsInboundAllowInventory.Read();
+    Console.WriteLine("G3_READY=false");
+    Console.WriteLine("mode=read_only_firewall_inventory");
+    Console.WriteLine("inbound_allow_inventory_observed=" +
+        (inventory.Observed ? "true" : "false"));
+    Console.WriteLine("inbound_allow_inventory_reason=" + inventory.Reason);
+    if (inventory.Observed)
+    {
+        Console.WriteLine("enabled_inbound_allow_rules=" + inventory.EnabledInboundAllowRules);
+        Console.WriteLine("private_applicable_rules=" + inventory.PrivateApplicableRules);
+        Console.WriteLine("wildcard_remote_rules=" + inventory.WildcardRemoteRules);
+        Console.WriteLine("unclassified_rules=" + inventory.UnclassifiedRules);
+    }
+    Console.WriteLine("effective_firewall_verified=false");
+    Console.WriteLine("network_listener_started=false");
+    Console.WriteLine("WARNING=Counts are not proof of effective packet filtering.");
+    return inventory.Observed ? 0 : 4;
+}
+
 using WinRemote.Network;
 
 if (args.Length == 0 || args[0] != "--local-diagnostic" ||
@@ -5,6 +28,7 @@ if (args.Length == 0 || args[0] != "--local-diagnostic" ||
 {
     Console.WriteLine("Read-only local Windows diagnostics.");
     Console.WriteLine("Usage: WinRemote.Diagnostics --local-diagnostic [--details]");
+    Console.WriteLine("   or: WinRemote.Diagnostics --audit-inbound-rules");
     Console.WriteLine("Default output omits adapter GUID, IPv4, Wi-Fi SSID and machine identifiers.");
     Console.WriteLine("Do not use this utility as proof that LAN access is safe.");
     return 2;
