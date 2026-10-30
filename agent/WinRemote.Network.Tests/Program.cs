@@ -262,4 +262,82 @@ EpochCheck("disposed guard denies any earlier or new lease",
     !epochs.IsActive(validAfterEvent) &&
     epochs.BeginVerifiedEpoch(request, evidence) is null);
 
-Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile + firewall + epoch).");
+// Process-memory-only HMAC proof. No local pairing approval UI or HTTPS endpoint exists.
+void AuthCheck(string name, bool condition)
+{
+    if (!condition) throw new Exception("Authentication proof failed: " + name);
+    Console.WriteLine("PASS auth " + name);
+    passed++;
+}
+using var auth = new LocalDeviceProofRegistry();
+var authNow = DateTimeOffset.FromUnixTimeSeconds(1_800_000_000);
+AuthCheck("cannot verify without enrollment",
+    !auth.Verify(null, authNow));
+AuthCheck("invalid local enrollment lifetime is rejected",
+    auth.EnrollLocally(TimeSpan.FromSeconds(1), authNow) is null);
+var offer = auth.EnrollLocally(TimeSpan.FromMinutes(10), authNow)!;
+AuthCheck("enrollment creates random 256-bit secret",
+    offer.SecretHex.Length == 64 && offer.DeviceId != Guid.Empty);
+var emptyBodyHash = Convert.ToHexString(
+    System.Security.Cryptography.SHA256.HashData(Array.Empty<byte>())).ToLowerInvariant();
+LocalDeviceProofRegistry.Proof Sign(
+    LocalDeviceProofRegistry.Enrollment enrollment, long when,
+    string nonce, string method = "POST", string path = "/api/input",
+    string? bodyHash = null)
+{
+    var p = new LocalDeviceProofRegistry.Proof(enrollment.DeviceId, when,
+        nonce, method, path, bodyHash ?? emptyBodyHash, "");
+    var hmac = System.Security.Cryptography.HMACSHA256.HashData(
+        Convert.FromHexString(enrollment.SecretHex),
+        System.Text.Encoding.UTF8.GetBytes(LocalDeviceProofRegistry.SigningMessage(p)));
+    return p with { MacHex = Convert.ToHexString(hmac).ToLowerInvariant() };
+}
+var firstNonce = "0123456789abcdef0123456789abcdef";
+var goodProof = Sign(offer, authNow.ToUnixTimeSeconds(), firstNonce);
+AuthCheck("correct signed request accepted once", auth.Verify(goodProof, authNow));
+AuthCheck("replay of exact request rejected", !auth.Verify(goodProof, authNow));
+var pathProof = Sign(offer, authNow.ToUnixTimeSeconds(), "1123456789abcdef0123456789abcdef");
+AuthCheck("path mutation fails authentication", !auth.Verify(pathProof with { Path = "/api/files" }, authNow));
+AuthCheck("original valid request remains possible after invalid MAC",
+    auth.Verify(pathProof, authNow));
+var bodyProof = Sign(offer, authNow.ToUnixTimeSeconds(), "2123456789abcdef0123456789abcdef");
+AuthCheck("body hash change fails", !auth.Verify(bodyProof with { BodySha256Hex = new string('a', 64) }, authNow));
+AuthCheck("method changed without MAC fails", !auth.Verify(bodyProof with { Method = "GET" }, authNow));
+AuthCheck("correct signed body accepted", auth.Verify(bodyProof, authNow));
+AuthCheck("wrong device rejected",
+    !auth.Verify(Sign(offer, authNow.ToUnixTimeSeconds(),
+        "3123456789abcdef0123456789abcdef") with { DeviceId = Guid.NewGuid() }, authNow));
+AuthCheck("timestamp too old rejected",
+    !auth.Verify(Sign(offer, authNow.ToUnixTimeSeconds()-91,
+        "4123456789abcdef0123456789abcdef"), authNow));
+AuthCheck("timestamp too new rejected",
+    !auth.Verify(Sign(offer, authNow.ToUnixTimeSeconds()+91,
+        "5123456789abcdef0123456789abcdef"), authNow));
+AuthCheck("noncanonical nonce rejected",
+    !auth.Verify(Sign(offer, authNow.ToUnixTimeSeconds(),
+        "ABCDEF0123456789ABCDEF0123456789"), authNow));
+AuthCheck("signed malformed route rejected",
+    !auth.Verify(Sign(offer, authNow.ToUnixTimeSeconds(),
+        "6123456789abcdef0123456789abcdef", path: "/api/../admin"), authNow));
+AuthCheck("forged MAC rejected",
+    !auth.Verify(Sign(offer, authNow.ToUnixTimeSeconds(),
+        "7123456789abcdef0123456789abcdef") with { MacHex = new string('0', 64) }, authNow));
+var oldProof = Sign(offer, authNow.ToUnixTimeSeconds(), "8123456789abcdef0123456789abcdef");
+var newOffer = auth.EnrollLocally(TimeSpan.FromMinutes(5), authNow)!;
+AuthCheck("re-enrolling revokes old device proof", !auth.Verify(oldProof, authNow));
+AuthCheck("new enrollment has a different secret",
+    offer.DeviceId != newOffer.DeviceId && offer.SecretHex != newOffer.SecretHex);
+var newProof = Sign(newOffer, authNow.ToUnixTimeSeconds(), "9123456789abcdef0123456789abcdef");
+AuthCheck("new device proof works", auth.Verify(newProof, authNow));
+AuthCheck("expired device proof rejected",
+    !auth.Verify(Sign(newOffer, authNow.ToUnixTimeSeconds(),
+        "a123456789abcdef0123456789abcdef"), authNow.AddMinutes(6)));
+var revokedOffer = auth.EnrollLocally(TimeSpan.FromMinutes(5), authNow)!;
+var revokedProof = Sign(revokedOffer, authNow.ToUnixTimeSeconds(), "b123456789abcdef0123456789abcdef");
+auth.Revoke();
+AuthCheck("manual revocation invalidates pending proof", !auth.Verify(revokedProof, authNow));
+auth.Dispose();
+AuthCheck("disposed registry cannot enroll again",
+    auth.EnrollLocally(TimeSpan.FromMinutes(5), authNow) is null);
+
+Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile + firewall + epoch + auth).");
