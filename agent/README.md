@@ -75,6 +75,20 @@ The default output contains only counts, per-index Private-profile observations 
 
 A self-contained Windows x64 artifact can be built on GitHub Actions by `.github/workflows/windows-diagnostic-package.yml`. The Actions artifact includes an unsigned `WinRemote.Diagnostics.exe` and `SHA256.txt` and is retained for only seven days. This is an optional **inspection tool, not the final app or an installer**. Verify its run's SHA and provenance; never blindly override SmartScreen or execute an unexpected binary. The GitHub-hosted Windows runner smoke test checks the read-only code path, not your home PC, and does not prove the Agent is safe to expose.
 
+## Windows Home field observation: non-Private network profile
+
+A Windows Home user executed the standalone **read-only** diagnostic on 2026-10-31 JST. It reported `local_adapter_count=47`, `potential_lan_adapters=1`, and `adapter_1_private_observed=false / adapter_1_profile_reason=not_private`. No listener, Firewall modification or certificate-store modification was reported. The total adapter count includes virtual/non-candidate adapters; it does not imply 47 actual LAN links. `G3_READY=false` is intentionally printed even on a trusted machine while the other security gates are absent.
+
+The original `not_private` reason did **not** distinguish Public, DomainAuthenticated or unrecognized profile categories. The profile probe now reports separate, non-identifying reasons: `public_profile_observed`, `domain_authenticated_profile_observed`, and `unknown_or_invalid_profile_category`. This preserves denial for every non-Private category and never prints the network name or SSID. The previously downloaded executable is unchanged; the new code is only on the development branch until repackaged.
+
+Before considering any Windows network-profile change, the owner can safely run the following **read-only** command in an ordinary local PowerShell terminal:
+
+```powershell
+Get-NetConnectionProfile | Select-Object InterfaceAlias, InterfaceIndex, NetworkCategory, IPv4Connectivity | Format-Table -AutoSize
+```
+
+Confirm which entry corresponds to the intended, personally trusted home Wi-Fi/Ethernet. Do not switch a guest, workplace or public network to Private merely to satisfy a diagnostic. **Do not run `Set-NetConnectionProfile` automatically**; any profile change needs an informed user decision. Even observing Private does not establish Firewall, TLS or device authentication safety.
+
 ## Decision contract
 
 Inputs:
