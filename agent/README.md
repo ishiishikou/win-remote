@@ -143,6 +143,14 @@ Together with the request-envelope and session limits, the local .NET harness no
 
 The current repository also includes a proof-of-concept in-memory HMAC request authenticator. The production design instead requires mature framework authentication, CSRF controls, Secure/HttpOnly/SameSite cookies and server-side credential revocation. Neither the pairing window nor the HMAC prototype should be exposed over HTTP before that integration and review.
 
+## One-time WebSocket upgrade tickets (G2-D)
+
+`OneTimeWebSocketTicketRegistry` is an **assembly-internal, process-memory-only** primitive for a future authenticated HTTPS host. It issues an unpadded canonical Base64URL token from 32 cryptographically random bytes (256-bit entropy), stores only a SHA-256 digest in memory, and permits **one pending token / one successful consumption**. Issuance requires a currently active network epoch, a server-supplied trusted device ID and session ID, PC-approved Terminal/Screen privilege, and a canonical RFC1918 endpoint. The token is bound to device, session, exact HTTPS origin, and privileged channel. It expires exactly 30 seconds after issuance; monotonic rollback, invalid session/epoch, replacement, explicit revocation, or five failed validations cause denial. Concurrent attempts are serialized so at most one succeeds.
+
+This is **not a WebSocket server, a pairing UI, or an authentication endpoint**. The future host must issue tickets only after authenticated same-origin CSRF-protected HTTPS POST, convey them without putting them in URL/query parameters, use secure transport, bind them to real server-held session state, consume atomically before upgrade, and invalidate live sockets on session/epoch revocation. An internal valid ticket cannot substitute for Windows network/Firewall evidence. The future HTTP host must *not* accept client-supplied authentication booleans, network flags, or clock ages.
+
+The console harness includes **272 checks** (232 earlier cases plus 40 one-time-ticket cases including parallel replay, invalid channel and nonprivate endpoint rejection). These were confirmed in an isolated .NET 10 Linux runtime. Windows/Ubuntu GitHub Actions verification for this newest commit must be confirmed separately. Production G1-G9 and real Windows Home/iPhone remote operation are still **not accepted**.
+
 ## Decision contract
 
 Inputs:
