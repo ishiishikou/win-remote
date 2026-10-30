@@ -61,6 +61,20 @@ Request proofs bind a 128-bit one-time nonce, device ID, time, method (GET/POST)
 
 22 negative/positive proof checks were added, bringing the test harness to **115 checks**. They passed on an isolated .NET 10 Linux runtime and in GitHub-hosted Windows/Ubuntu CI for commit `b3a8a58921f03b607b8495c9592ff6209af03347`. No iPhone pairing, browser authentication, physical user approval or LAN listener has been implemented.
 
+## Non-admin Windows Home diagnostic (G3-I)
+
+`agent/WinRemote.Diagnostics` is a **read-only** console app. It enumerates adapters and checks their currently observed Windows Private network category, but prints `G3_READY=false` unconditionally because effective Firewall, trusted physical NIC, continuous monitor and authentication gates are **not** verified. It does not open a port, change Windows Firewall, install a service, create a certificate, or register a device.
+
+After downloading source and installing .NET 10 SDK, run from a local Windows terminal **without elevation**:
+
+```powershell
+dotnet run --project agent/WinRemote.Diagnostics/WinRemote.Diagnostics.csproj -- --local-diagnostic
+```
+
+The default output contains only counts, per-index Private-profile observations and denial reasons; it omits the IPv4 addresses, adapter GUIDs, SSIDs and device name. Optional `--details` prints local adapter GUIDs and IPv4 addresses **only to the local console**; do not put detailed output in a public issue or PR. `G3_READY=false` is expected on a healthy computer until the remaining production gates have been built and tested.
+
+A self-contained Windows x64 artifact can be built on GitHub Actions by `.github/workflows/windows-diagnostic-package.yml`. The Actions artifact includes an unsigned `WinRemote.Diagnostics.exe` and `SHA256.txt` and is retained for only seven days. This is an optional **inspection tool, not the final app or an installer**. Verify its run's SHA and provenance; never blindly override SmartScreen or execute an unexpected binary. The GitHub-hosted Windows runner smoke test checks the read-only code path, not your home PC, and does not prove the Agent is safe to expose.
+
 ## Decision contract
 
 Inputs:
