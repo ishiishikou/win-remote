@@ -1,9 +1,10 @@
 using static WinRemote.Network.NetworkBoundaryPolicy;
 
+// Synthetic RFC1918 fixture addresses only; do not copy addresses from a home LAN.
 var nic = Guid.Parse("550e8400-e29b-41d4-a716-446655440000");
-var request = new EndpointRequest(nic, "192.168.50.219", "192.168.50.42", 8443);
+var request = new EndpointRequest(nic, "10.246.73.20", "10.246.73.21", 8443);
 var adapter = new AdapterSnapshot(nic, true, true, true,
-    [new AddressOnAdapter("192.168.50.219", 24)]);
+    [new AddressOnAdapter("10.246.73.20", 24)]);
 var evidence = new MachineEvidence(true, true, true, [adapter]);
 
 int passed = 0;
@@ -24,14 +25,14 @@ Check("missing evidence", request, null, false);
 Deny("empty adapter id", request with { AdapterId = Guid.Empty }, evidence);
 Deny("invalid IPv4 (wildcard)", request with { LocalIpv4 = "0.0.0.0" }, evidence);
 Deny("IPv6 literal", request with { LocalIpv4 = "::" }, evidence);
-Deny("noncanonical octets", request with { LocalIpv4 = "192.168.050.219" }, evidence);
-Deny("shorthand IPv4", request with { LocalIpv4 = "192.168.50" }, evidence);
+Deny("noncanonical octets", request with { LocalIpv4 = "010.246.073.020" }, evidence);
+Deny("shorthand IPv4", request with { LocalIpv4 = "10.246.73" }, evidence);
 Deny("public local", request with { LocalIpv4 = "8.8.8.8" }, evidence);
 Deny("CGNAT client", request with { ClientIpv4 = "100.64.0.3" }, evidence);
-Deny("outside subnet", request with { ClientIpv4 = "192.168.51.44" }, evidence);
+Deny("outside subnet", request with { ClientIpv4 = "10.246.74.21" }, evidence);
 Deny("same host", request with { ClientIpv4 = request.LocalIpv4 }, evidence);
-Deny("broadcast client", request with { ClientIpv4 = "192.168.50.255" }, evidence);
-Deny("network client", request with { ClientIpv4 = "192.168.50.0" }, evidence);
+Deny("broadcast client", request with { ClientIpv4 = "10.246.73.255" }, evidence);
+Deny("network client", request with { ClientIpv4 = "10.246.73.0" }, evidence);
 Deny("privileged port", request with { Port = 443 }, evidence);
 Deny("nonexistent adapter", request with { AdapterId = Guid.NewGuid() }, evidence);
 Deny("duplicate adapter", request, evidence with { Adapters = [adapter, adapter] });
