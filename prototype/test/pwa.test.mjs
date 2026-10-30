@@ -108,7 +108,7 @@ test("worker fails closed if expected demo asset is missing", async () => {
 });
 
 test("registration requires secure context and never uses remote origin", async () => {
-  async function register(secure, available) {
+  async function register(secure, available, path = "/prototype/index.html") {
     const listeners = {};
     const calls = [];
     const navigator = available ? {serviceWorker: {
@@ -116,7 +116,7 @@ test("registration requires secure context and never uses remote origin", async 
     }} : {};
     vm.runInNewContext(read("pwa.js"), {
       navigator,
-      window: {isSecureContext: secure, addEventListener(type, callback) {listeners[type] = callback;}},
+      window: {isSecureContext: secure, location: {pathname:path}, addEventListener(type, callback) {listeners[type] = callback;}},
       console: {warn() {}}
     });
     if (listeners.load) listeners.load();
@@ -125,5 +125,7 @@ test("registration requires secure context and never uses remote origin", async 
   }
   assert.deepEqual(await register(false, true), []);
   assert.deepEqual(await register(true, false), []);
+  assert.deepEqual(await register(true, true, "/"), []);
+  assert.deepEqual(await register(true, true, "/agent/"), []);
   assert.equal(JSON.stringify(await register(true, true)), JSON.stringify([["./sw.js", {scope:"./"}]]));
 });
