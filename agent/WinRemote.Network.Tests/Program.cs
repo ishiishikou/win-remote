@@ -211,4 +211,55 @@ FirewallCheck("invalid expected alias rejected",
 FirewallCheck("observed shape cannot override missing OS verification",
     !Evaluate(request, WindowsAdapterInventory.BuildUnverified([observed])).Allowed);
 
-Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile + firewall audit).");
+// Network epoch gate tests. These are synthetic grants; the product does not yet
+// possess trusted OS evidence or expose BeginVerifiedEpoch outside the assembly.
+void EpochCheck(string name, bool condition)
+{
+    if (!condition) throw new Exception("Epoch gate failed: " + name);
+    Console.WriteLine("PASS epoch " + name);
+    passed++;
+}
+using var epochs = new NetworkEpochGuard();
+EpochCheck("default denied", !epochs.IsActive(null));
+var first = epochs.BeginVerifiedEpoch(request, evidence);
+EpochCheck("valid synthetic verification can arm internal epoch",
+    first is not null && epochs.IsActive(first));
+EpochCheck("issued lease has revocation token", first!.Revoked.CanBeCanceled);
+using var other = new NetworkEpochGuard();
+var foreign = other.BeginVerifiedEpoch(request, evidence);
+EpochCheck("lease cannot cross guard instances", !epochs.IsActive(foreign));
+epochs.Invalidate();
+EpochCheck("invalidation instantly disallows prior lease", !epochs.IsActive(first));
+EpochCheck("invalidation notifies existing requests", first.Revoked.IsCancellationRequested);
+var next = epochs.BeginVerifiedEpoch(request, evidence);
+EpochCheck("new verification creates a distinct epoch",
+    next is not null && epochs.IsActive(next) && next.Epoch != first.Epoch);
+EpochCheck("previous epoch remains invalid", !epochs.IsActive(first));
+var badEpoch = epochs.BeginVerifiedEpoch(request,
+    evidence with { ScopedFirewallRuleVerified = false });
+EpochCheck("failed revalidation cannot grant", badEpoch is null);
+EpochCheck("failed revalidation revokes existing permission",
+    !epochs.IsActive(next) && next!.Revoked.IsCancellationRequested);
+var callbackLease = epochs.BeginVerifiedEpoch(request, evidence)!;
+bool callbackReentered = false;
+using (callbackLease.Revoked.Register(() => {
+    callbackReentered = !epochs.IsActive(callbackLease);
+}))
+{
+    epochs.Invalidate();
+}
+EpochCheck("revocation callback safely reenters guard", callbackReentered);
+epochs.Invalidate();
+EpochCheck("repeat invalidation remains denied", !epochs.IsActive(callbackLease));
+using var testEvents = NetworkEventInvalidator.TryRegister(epochs);
+EpochCheck("event bridge never activates permission", !epochs.IsActive(callbackLease));
+var validAfterEvent = epochs.BeginVerifiedEpoch(request, evidence);
+testEvents?.SignalChange();
+EpochCheck("network event invalidates active lease on Windows",
+    testEvents is null || !epochs.IsActive(validAfterEvent));
+epochs.Dispose();
+EpochCheck("disposed guard denies any earlier or new lease",
+    !epochs.IsActive(validAfterEvent) &&
+    epochs.BeginVerifiedEpoch(request, evidence) is null);
+
+Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile + firewall + epoch).");
