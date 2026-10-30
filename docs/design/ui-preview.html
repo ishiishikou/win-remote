@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>win-remote — iPhone UI設計案</title>
+  <style>
+    :root { color-scheme: light; --ink:#172e30; --muted:#52696a; --accent:#075e57; --paper:#f4f5ef; --line:#d4dfd9; --white:#fff; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Yu Gothic UI",sans-serif; font-size:16px; line-height:1.55; }
+    main { max-width:1240px; margin:auto; padding:36px 24px 48px; }
+    .eyebrow { color:var(--accent); font-size:13px; letter-spacing:.14em; font-weight:700; }
+    h1 { font-size:clamp(26px,4vw,40px); line-height:1.25; margin:12px 0; letter-spacing:-.03em; }
+    .intro { max-width:720px; color:var(--muted); margin:0 0 28px; }
+    .notice { border-left:3px solid var(--accent); padding:4px 0 4px 14px; margin:20px 0 32px; color:var(--muted); }
+    .grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:30px 24px; align-items:start; }
+    .caption { display:flex; gap:12px; align-items:baseline; margin-bottom:10px; }
+    .number { font-size:13px; color:var(--accent); font-weight:700; }
+    h2 { font-size:19px; margin:0; }
+    .phone { min-width:0; min-height:610px; border:1px solid #b9cbc3; border-radius:26px; background:var(--white); overflow:hidden; display:flex; flex-direction:column; box-shadow:0 7px 20px #153b2c09; }
+    .status { display:flex; justify-content:space-between; gap:8px; padding:17px 20px 10px; font-size:12px; color:var(--muted); }
+    .connected { color:var(--accent); }
+    .content { padding:12px 19px 18px; flex:1; min-width:0; }
+    h3 { font-size:24px; line-height:1.3; margin:0 0 9px; letter-spacing:-.02em; }
+    .sub { color:var(--muted); font-size:13px; margin:0 0 19px; }
+    .section-label { font-size:13px; font-weight:600; color:var(--muted); margin:22px 0 10px; }
+    .quick { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .tile { padding:14px 10px; min-height:88px; border-radius:14px; background:#edf4f0; display:flex; flex-direction:column; gap:7px; font-weight:600; }
+    .tile small { color:var(--muted); font-size:12px; font-weight:400; }
+    .row { display:flex; gap:10px; align-items:center; padding:13px 0; border-bottom:1px solid var(--line); min-width:0; }
+    .row > .grow { flex:1; min-width:0; overflow-wrap:anywhere; }
+    .row strong { font-size:15px; }
+    .row small,.meta { display:block; font-size:12px; color:var(--muted); }
+    .badge { display:inline-block; padding:3px 8px; background:#eaf3ed; color:#315a46; border-radius:6px; font-size:11px; }
+    .action { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:8px 12px; border-radius:10px; background:#edf3ef; color:var(--accent); font-size:14px; font-weight:600; text-align:center; }
+    .primary { background:var(--accent); color:var(--white); }
+    .full { display:flex; width:100%; }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+    .actions > * { flex:1; }
+    .app-card { padding:15px 0; border-bottom:1px solid var(--line); }
+    .app-card h4 { font-size:17px; margin:0; }
+    .app-card p { font-size:13px; color:var(--muted); margin:5px 0 10px; }
+    .nav { display:grid; grid-template-columns:repeat(5,1fr); gap:2px; border-top:1px solid var(--line); padding:10px 7px 18px; font-size:12px; text-align:center; color:var(--muted); }
+    .nav span { min-height:44px; padding:12px 0; border-radius:8px; }
+    .nav .active { background:#e6f0eb; color:var(--accent); font-weight:700; }
+    .search { color:var(--muted); background:#f0f3f0; padding:13px 12px; border-radius:10px; font-size:14px; margin-bottom:6px; }
+    .file-icon { width:31px; height:37px; flex:none; background:#e8f0eb; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--accent); }
+    .file-icon.folder { height:26px; background:#eadfbe; color:#5b522f; }
+    .terminal { background:#152c2c; color:#e0f0e9; border-radius:12px; padding:16px 14px; min-height:213px; font:13px/1.8 ui-monospace,"Cascadia Code",Consolas,monospace; overflow-wrap:anywhere; }
+    .terminal .dim { color:#9abbb0; }
+    .terminal .prompt { color:#a4d3bb; }
+    .input { border:1px solid #b8ccc1; border-radius:10px; padding:12px; margin-top:14px; font-size:15px; overflow-wrap:anywhere; }
+    .keys { display:flex; gap:5px; margin-top:10px; }
+    .keys span { flex:1; min-height:40px; border-radius:6px; background:#eff3ef; font-size:12px; display:flex; align-items:center; justify-content:center; }
+    .hint { color:var(--muted); font-size:12px; margin:14px 0 0; }
+    .target { padding:12px; border-left:3px solid var(--accent); background:#f0f5f1; margin:17px 0; }
+    .target small { color:var(--muted); display:block; font-size:12px; }
+    .draft { min-height:163px; padding:14px; border:1px solid #b8ccc1; border-radius:12px; line-height:1.8; }
+    .keyboard { background:#ecf0ed; margin-top:18px; padding:12px 7px; border-radius:10px; display:grid; grid-template-columns:repeat(5,1fr); gap:5px; }
+    .keyboard span { text-align:center; padding:8px 0; border-radius:5px; background:white; font-size:14px; }
+    .desktop { position:relative; height:174px; background:#dce8e4; border-radius:10px; padding:17px; }
+    .window { background:white; border:1px solid #a9bdb2; border-radius:4px; height:128px; padding:9px 12px; box-shadow:0 4px 8px #25403416; }
+    .window-title { font-size:10px; padding-bottom:7px; border-bottom:1px solid var(--line); }
+    .window p { font-size:11px; margin:12px 0; }
+    .dialog-actions { display:flex; justify-content:flex-end; gap:5px; }
+    .dialog-actions span { font-size:9px; padding:3px 7px; border:1px solid var(--line); border-radius:3px; }
+    .trackpad { margin-top:14px; height:134px; border-radius:14px; border:1px dashed #a9bdb2; background:#f2f6f2; display:flex; flex-direction:column; justify-content:center; align-items:center; color:var(--muted); }
+    .trackpad strong { color:var(--ink); font-size:16px; }
+    .trackpad small { font-size:12px; margin-top:5px; }
+    .stop { background:#faece8; color:#8d3522; }
+    .design-note { margin:10px 3px 0; color:var(--muted); font-size:13px; }
+    footer { color:var(--muted); font-size:13px; margin-top:32px; border-top:1px solid var(--line); padding-top:20px; }
+    @media (max-width:1010px) { .grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media (max-width:660px) { main { padding:24px 14px 32px; } .grid { grid-template-columns:1fr; gap:28px; } .phone { max-width:430px; margin:auto; } h1 { font-size:29px; } }
+    @media print { .grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .screen { break-inside:avoid; } .phone { box-shadow:none; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">WIN-REMOTE / DESIGN STUDY</div>
+  <h1>PCの機能を、親指の届く場所へ。</h1>
+  <p class="intro">よく使う操作はiPhone専用UIで。必要になった時だけWindows画面を開く、個人用リモート操作アプリの設計案です。</p>
+  <p class="notice">静的デザイン資料・未実装。PC名、ファイル、出力、接続状態はすべて表示例です。ボタンは操作できず、外部通信も行いません。</p>
+  <div class="grid">
+    <section class="screen" aria-labelledby="home-title">
+      <div class="caption"><span class="number">01</span><h2 id="home-title">ホーム</h2></div>
+      <div class="phone">
+        <div class="status"><span>自宅PC</span><span class="connected">● 接続済み</span></div>
+        <div class="content">
+          <h3>何をしますか</h3><p class="sub">よく使う操作を、ここから。</p>
+          <div class="quick">
+            <div class="tile">Chromeを開く<small>登録したアプリ</small></div>
+            <div class="tile">メモ帳を開く<small>登録したアプリ</small></div>
+            <div class="tile">ファイルを見る<small>Remoteフォルダ</small></div>
+            <div class="tile">文字を送る<small>iPhoneで編集</small></div>
+          </div>
+          <div class="section-label">開いているアプリ</div>
+          <div class="row"><div class="grow"><strong>Chrome</strong><small>調べもの</small></div><span class="action">切り替え</span></div>
+          <div class="row"><div class="grow"><strong>メモ帳</strong><small>買い物メモ</small></div><span class="action">切り替え</span></div>
+          <div class="section-label">前回の作業</div><span class="meta">ドキュメント / Remote</span>
+        </div>
+        <div class="nav" aria-label="画面例の下部ナビゲーション"><span class="active">ホーム</span><span>アプリ</span><span>ファイル</span><span>端末</span><span>画面</span></div>
+      </div><p class="design-note">画面転送を始めず、目的から操作を選ぶ。</p>
+    </section>
+    <section class="screen" aria-labelledby="apps-title">
+      <div class="caption"><span class="number">02</span><h2 id="apps-title">アプリ</h2></div>
+      <div class="phone">
+        <div class="status"><span>自宅PC</span><span class="connected">● 接続済み</span></div>
+        <div class="content">
+          <h3>開いているアプリ</h3><p class="sub">ウィンドウ単位で切り替え。</p>
+          <div class="search">アプリ・ウィンドウを検索</div>
+          <div class="app-card"><h4>Chrome</h4><p>調べもの</p><span class="badge">前面</span><div class="actions"><span class="action primary">切り替え</span><span class="action">操作</span></div></div>
+          <div class="app-card"><h4>メモ帳</h4><p>買い物メモ</p><div class="actions"><span class="action primary">切り替え</span><span class="action">操作</span></div></div>
+          <div class="app-card"><h4>エクスプローラー</h4><p>Remote</p><div class="actions"><span class="action">切り替え</span><span class="action">操作</span></div></div>
+        </div>
+        <div class="nav"><span>ホーム</span><span class="active">アプリ</span><span>ファイル</span><span>端末</span><span>画面</span></div>
+      </div><p class="design-note">操作シートから文字入力・通常終了・画面確認。</p>
+    </section>
+    <section class="screen" aria-labelledby="files-title">
+      <div class="caption"><span class="number">03</span><h2 id="files-title">ファイル</h2></div>
+      <div class="phone">
+        <div class="status"><span>自宅PC</span><span class="connected">● 接続済み</span></div>
+        <div class="content">
+          <h3>Remote</h3><p class="sub">登録フォルダ / ドキュメント</p>
+          <div class="search">このフォルダ内を検索</div>
+          <div class="row"><span class="file-icon folder">DIR</span><div class="grow"><strong>資料</strong><small>フォルダ</small></div><span class="action">開く</span></div>
+          <div class="row"><span class="file-icon folder">DIR</span><div class="grow"><strong>写真</strong><small>フォルダ</small></div><span class="action">開く</span></div>
+          <div class="row"><span class="file-icon">TXT</span><div class="grow"><strong>買い物メモ.txt</strong><small>2 KB</small></div><span class="action">操作</span></div>
+          <div class="row"><span class="file-icon">MD</span><div class="grow"><strong>design.md</strong><small>8 KB</small></div><span class="action">操作</span></div>
+          <div class="section-label">このフォルダへ</div><div class="actions"><span class="action primary">iPhoneから追加</span><span class="action">新規作成</span></div>
+          <p class="hint">名前変更・コピー・移動・ごみ箱は、対象を選んでから。</p>
+        </div>
+        <div class="nav"><span>ホーム</span><span>アプリ</span><span class="active">ファイル</span><span>端末</span><span>画面</span></div>
+      </div><p class="design-note">Windowsの小さい右クリックメニューを使わない。</p>
+    </section>
+    <section class="screen" aria-labelledby="terminal-title">
+      <div class="caption"><span class="number">04</span><h2 id="terminal-title">ターミナル</h2></div>
+      <div class="phone">
+        <div class="status"><span>自宅PC</span><span>利用枠 残り14分</span></div>
+        <div class="content">
+          <h3>PowerShell</h3><p class="sub">作業場所: Remote ・ 通常ユーザー</p>
+          <div class="terminal"><span class="dim">自由なシェルを開始しました</span><br><br><span class="prompt">PS&gt;</span> Get-ChildItem<br>資料<br>写真<br>買い物メモ.txt<br>design.md<br><span class="prompt">PS&gt;</span> ▋</div>
+          <div class="input">Get-Content .\買い物メモ.txt</div>
+          <div class="keys"><span>Esc</span><span>Tab</span><span>Ctrl</span><span>↑</span><span>↓</span><span>←</span><span>→</span></div>
+          <div class="actions"><span class="action">中断 Ctrl+C</span><span class="action primary">実行</span></div>
+          <p class="hint">作業場所は権限の制限ではありません。</p>
+        </div>
+        <div class="nav"><span>ホーム</span><span>アプリ</span><span>ファイル</span><span class="active">端末</span><span>画面</span></div>
+      </div><p class="design-note">日本語は入力欄で確定。対話用の補助キーも用意。</p>
+    </section>
+    <section class="screen" aria-labelledby="input-title">
+      <div class="caption"><span class="number">05</span><h2 id="input-title">文字入力シート</h2></div>
+      <div class="phone">
+        <div class="status"><span>文字を送る</span><span>閉じる</span></div>
+        <div class="content">
+          <h3>iPhoneで書く</h3>
+          <div class="target"><small>送信先</small><strong>メモ帳 — 買い物メモ</strong></div>
+          <div class="draft">週末の買い物<br>牛乳、コーヒー、パン<br><br>▏</div>
+          <p class="hint">文字だけを送ります。Enterは別の操作です。</p>
+          <div class="actions"><span class="action">Enter</span><span class="action primary">文字を送る</span></div>
+          <div class="keyboard" aria-label="iPhoneキーボードの模式図"><span>あ</span><span>か</span><span>さ</span><span>た</span><span>な</span><span>は</span><span>ま</span><span>や</span><span>ら</span><span>わ</span></div>
+        </div>
+      </div><p class="design-note">送信先を常に表示し、変換途中には送らない。</p>
+    </section>
+    <section class="screen" aria-labelledby="screen-title">
+      <div class="caption"><span class="number">06</span><h2 id="screen-title">必要な時だけ画面</h2></div>
+      <div class="phone">
+        <div class="status"><span>自宅PC</span><span class="connected">● 画面操作中</span></div>
+        <div class="content">
+          <h3>画面で確認</h3><p class="sub">表示は模式図です ・ モニター1</p>
+          <div class="desktop"><div class="window"><div class="window-title">メモ帳</div><p>変更を保存しますか？</p><div class="dialog-actions"><span>保存</span><span>保存しない</span><span>キャンセル</span></div></div></div>
+          <div class="actions"><span class="action">−</span><span class="action">表示を合わせる</span><span class="action">＋</span></div>
+          <div class="trackpad"><strong>トラックパッド</strong><small>1本指で移動 / 2本指でスクロール</small></div>
+          <div class="actions"><span class="action">左クリック</span><span class="action">右クリック</span></div>
+          <div class="actions"><span class="action">文字入力</span><span class="action stop">画面を終了</span></div>
+        </div>
+        <div class="nav"><span>ホーム</span><span>アプリ</span><span>ファイル</span><span>端末</span><span class="active">画面</span></div>
+      </div><p class="design-note">操作が終われば転送を止め、専用UIへ戻る。</p>
+    </section>
+  </div>
+  <footer>設計提案 / 2026-10-30 · 正本: ishiishikou/win-remote · 詳細な挙動と権限は mobile-ui.md / security.md を参照。</footer>
+</main>
+</body>
+</html>
