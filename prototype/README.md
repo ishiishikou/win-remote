@@ -22,4 +22,11 @@
 G1の無料・MacなしiPhone証明書/PWA・HTTPS/WSSのPoC、およびG2/G3の認証/LAN限定検証を進めます。**本デモの画面はG1や実機UXに合格したものではありません。**
 
 ## 簡易検査
-Node.js があれば `node --test prototype/test/smoke.test.mjs` をリポジトリのルートで実行できます。静的契約のチェックにすぎず、iPhone実機やブラウザE2Eの代替ではありません。
+Node.js があれば、リポジトリのルートで次を実行できます。
+
+```powershell
+node --check prototype/app.js
+node --test prototype/test/smoke.test.mjs prototype/test/behavior.test.mjs
+```
+
+2026-10-30にNode.js 24.18.0（Linux）で上記の構文チェックと9件の単体テストが成功しました。後者の4件はモックDOMで実際のUIスクリプトを実行しますが、**本物のSafari/Chrome上のE2E・iPhone実機動作はまだ未確認**です。
