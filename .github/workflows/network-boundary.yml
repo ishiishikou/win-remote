@@ -1,0 +1,36 @@
+name: Windows agent network-boundary tests
+
+on:
+  push:
+    branches:
+      - feat/g3-network-boundary
+    paths:
+      - 'agent/**'
+      - '.github/workflows/network-boundary.yml'
+  pull_request:
+    paths:
+      - 'agent/**'
+      - '.github/workflows/network-boundary.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: .NET 10 policy (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build policy and test harness
+        run: dotnet build agent/WinRemote.Network.Tests/WinRemote.Network.Tests.csproj --configuration Release --nologo
+      - name: Execute all positive and negative boundary checks
+        run: dotnet run --project agent/WinRemote.Network.Tests/WinRemote.Network.Tests.csproj --configuration Release --no-build
