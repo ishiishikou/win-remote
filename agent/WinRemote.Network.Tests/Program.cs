@@ -430,4 +430,92 @@ SurveyCheck("oversized JSON denied", !WindowsInboundAllowInventory.Parse(new str
 SurveyCheck("no survey can set effective Firewall permission",
     !Evaluate(request, WindowsAdapterInventory.BuildUnverified([observed])).Allowed);
 
-Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile + firewall + epoch + auth + firewall baseline + inbound survey).");
+// A valid network epoch alone is NOT sufficient to admit an HTTP request.
+// These are synthetic metadata tests, not a deployed HTTP endpoint.
+void BrowserCheck(string name, bool expected, BrowserRequestBoundary.Decision result)
+{
+    if (result.Allowed != expected)
+        throw new Exception("HTTP gate " + name + ": " + result.Reason);
+    Console.WriteLine("PASS HTTP boundary " + name + ": " + result.Reason);
+    passed++;
+}
+using var browserGate = new NetworkEpochGuard();
+var browserLease = browserGate.BeginVerifiedEpoch(request, evidence)!;
+var browserEndpoint = new BrowserRequestBoundary.Endpoint("10.246.73.20", 8443);
+var browserPost = new BrowserRequestBoundary.Envelope(
+    "https", "10.246.73.20:8443", "https://10.246.73.20:8443",
+    "POST", "/api/input", "application/json", 256,
+    IsWebSocketUpgrade: false, DeviceAuthenticated: true,
+    SessionAuthorized: true, CsrfVerified: true,
+    OneTimeWebSocketTicketVerified: false);
+BrowserRequestBoundary.Decision WebGate(BrowserRequestBoundary.Envelope? envelope,
+    BrowserRequestBoundary.Endpoint? endpoint = null,
+    NetworkEpochGuard.Lease? lease = null) =>
+    BrowserRequestBoundary.Evaluate(endpoint ?? browserEndpoint, envelope, browserGate, lease ?? browserLease);
+BrowserCheck("valid synthetic POST envelope", true, WebGate(browserPost));
+BrowserCheck("TLS must be established", false,
+    WebGate(browserPost with { Scheme = "http" }));
+BrowserCheck("Host must be exact", false,
+    WebGate(browserPost with { Host = "10.246.73.20" }));
+BrowserCheck("wildcard Host not allowed", false,
+    WebGate(browserPost with { Host = "0.0.0.0:8443" }));
+BrowserCheck("multiple Host headers not allowed", false,
+    WebGate(browserPost with { Host = "10.246.73.20:8443,evil:8443" }));
+BrowserCheck("user-info Origin not allowed", false,
+    WebGate(browserPost with { Origin = "https://user@10.246.73.20:8443" }));
+BrowserCheck("cross-site Origin rejected", false,
+    WebGate(browserPost with { Origin = "https://10.246.73.21:8443" }));
+BrowserCheck("null Origin rejected", false,
+    WebGate(browserPost with { Origin = "null" }));
+BrowserCheck("missing Origin rejected", false,
+    WebGate(browserPost with { Origin = null }));
+BrowserCheck("trailing-slash Origin rejected", false,
+    WebGate(browserPost with { Origin = "https://10.246.73.20:8443/" }));
+BrowserCheck("unauthenticated device rejected", false,
+    WebGate(browserPost with { DeviceAuthenticated = false }));
+BrowserCheck("expired session rejected", false,
+    WebGate(browserPost with { SessionAuthorized = false }));
+BrowserCheck("missing CSRF proof rejected", false,
+    WebGate(browserPost with { CsrfVerified = false }));
+BrowserCheck("GET mutation attempt rejected", false,
+    WebGate(browserPost with { Method = "GET" }));
+BrowserCheck("arbitrary API route rejected", false,
+    WebGate(browserPost with { Path = "/api/admin" }));
+BrowserCheck("path normalization rejected", false,
+    WebGate(browserPost with { Path = "/api/../input" }));
+BrowserCheck("form Content-Type rejected", false,
+    WebGate(browserPost with { ContentType = "application/x-www-form-urlencoded" }));
+BrowserCheck("mutation 64 KiB limit enforced", false,
+    WebGate(browserPost with { BodyByteLength = 65537 }));
+BrowserCheck("negative body length rejected", false,
+    WebGate(browserPost with { BodyByteLength = -1 }));
+BrowserCheck("bounded JSON charset allowed", true,
+    WebGate(browserPost with { ContentType = "application/json; charset=utf-8", BodyByteLength = 65536 }));
+BrowserCheck("noncanonical local IPv4 endpoint rejected", false,
+    WebGate(browserPost, new BrowserRequestBoundary.Endpoint("010.246.073.020", 8443)));
+BrowserCheck("privileged port rejected", false,
+    WebGate(browserPost, new BrowserRequestBoundary.Endpoint("10.246.73.20", 443)));
+var webSocket = browserPost with {
+    Method = "GET", Path = "/ws/terminal", ContentType = null,
+    BodyByteLength = 0, IsWebSocketUpgrade = true,
+    CsrfVerified = false, OneTimeWebSocketTicketVerified = true
+};
+BrowserCheck("valid synthetic WebSocket envelope", true, WebGate(webSocket));
+BrowserCheck("WebSocket missing ticket rejected", false,
+    WebGate(webSocket with { OneTimeWebSocketTicketVerified = false }));
+BrowserCheck("WebSocket cross-site request rejected", false,
+    WebGate(webSocket with { Origin = "https://attacker.invalid" }));
+BrowserCheck("WebSocket arbitrary route rejected", false,
+    WebGate(webSocket with { Path = "/ws/raw" }));
+BrowserCheck("WebSocket with request body rejected", false,
+    WebGate(webSocket with { BodyByteLength = 12 }));
+BrowserCheck("WebSocket POST attempt rejected", false,
+    WebGate(webSocket with { Method = "POST" }));
+BrowserCheck("WebSocket unauthenticated device rejected", false,
+    WebGate(webSocket with { DeviceAuthenticated = false }));
+browserGate.Invalidate();
+BrowserCheck("revoked network epoch closes valid POST", false, WebGate(browserPost));
+BrowserCheck("revoked network epoch closes valid WSS", false, WebGate(webSocket));
+BrowserCheck("null envelope rejected", false, WebGate(null));
+
+Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile + firewall + epoch + auth + firewall baseline + inbound survey + browser envelope).");
