@@ -1,3 +1,5 @@
+using WinRemote.Network;
+
 // Optional, read-only coarse inbound Allow rule inventory. Return aggregate
 // counts only. A successful inventory never grants any network permission.
 if (args.Length == 1 && args[0] == "--audit-inbound-rules")
@@ -21,7 +23,6 @@ if (args.Length == 1 && args[0] == "--audit-inbound-rules")
     return inventory.Observed ? 0 : 4;
 }
 
-using WinRemote.Network;
 
 if (args.Length == 0 || args[0] != "--local-diagnostic" ||
     (args.Length > 2 || (args.Length == 2 && args[1] != "--details")))
