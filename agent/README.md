@@ -89,6 +89,24 @@ Get-NetConnectionProfile | Select-Object InterfaceAlias, InterfaceIndex, Network
 
 Confirm which entry corresponds to the intended, personally trusted home Wi-Fi/Ethernet. Do not switch a guest, workplace or public network to Private merely to satisfy a diagnostic. **Do not run `Set-NetConnectionProfile` automatically**; any profile change needs an informed user decision. Even observing Private does not establish Firewall, TLS or device authentication safety.
 
+## Home Windows Private profile verified (G3 field evidence)
+
+On 2026-10-31 JST, the owner changed the intended home Wi-Fi (InterfaceIndex 9) to `Private` in Windows Settings. The read-only `Get-NetConnectionProfile` query confirmed `Wi-Fi / Private`, and the standalone diagnostic reported `potential_lan_adapters=1`, `adapter_1_private_observed=true`, `adapter_1_profile_reason=private_profile_observed_only` and `private_profiles_observed=1`. No listener was started or Firewall/certificate configuration was modified by the diagnostic. **This establishes the selected Home PC's Private-profile observation, not G3 authorization.** The profile can change later; a production host must recheck it continuously.
+
+## Windows Firewall ActiveStore Private baseline (G3-K)
+
+`WindowsFirewallProfileProbe.ReadPrivateBaseline()` performs a **read-only**, fixed-command query via `Get-NetFirewallProfile -PolicyStore ActiveStore -Name Private`. It checks a single well-formed Private profile, firewall enabled, inbound default Block, and an explicitly configured inbound-rule setting. Invalid/missing/duplicate/unexpected responses fail closed. The default diagnostic CLI now reports `private_firewall_baseline_observed` and a non-identifying reason without printing individual Windows Firewall rules or machine identifiers.
+
+**A baseline observation is not an effective Firewall policy audit**: per-program/port allow rules, IPv6, third-party WFP filters, interface scoping, and dynamic policy changes are not established. The CLI still prints `effective_firewall_verified=false` and `G3_READY=false` in all cases; this probe never populates `MachineEvidence.ScopedFirewallRuleVerified`. Additional packet-path and local-rule scope verification must precede any LAN listener.
+
+A safe non-administrator local check using built-in PowerShell is:
+
+```powershell
+Get-NetFirewallProfile -PolicyStore ActiveStore -Name Private | Select-Object Name, Enabled, DefaultInboundAction, AllowInboundRules | Format-Table -AutoSize
+```
+
+Do **not** run `Set-NetFirewallProfile`, `New-NetFirewallRule`, or port-opening commands as part of this check. See [Microsoft documentation](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallprofile) for `ActiveStore` semantics. The .NET console harness now contains **135 checks** (119 prior checks plus 16 new Firewall baseline checks), passing in Linux .NET10 and GitHub-hosted Windows/Ubuntu CI.
+
 ## Decision contract
 
 Inputs:
