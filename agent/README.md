@@ -53,6 +53,14 @@ Microsoft documentation: [Get-NetFirewallRule](https://learn.microsoft.com/en-us
 
 15 epoch/cancellation checks added, bringing the test harness to **93 checks**. These are logic checks; no network listener, live Firewall enforcement, pairing or Windows Home device tests are present.
 
+## In-memory single-device HMAC proof (G3-H)
+
+`LocalDeviceProofRegistry` is **not a network-facing pairing endpoint**. It issues one random 256-bit device secret only through an **assembly-internal** enrollment method, for a future physically approved local Windows-user interface. The key exists only in process memory, is zeroed on revocation/disposal, cannot survive a restart, and is never logged. A new enrollment replaces the old device. The experimental maximum lifetime is 24 hours; the local UI, protection of the pairing secret and durable key storage are **not** implemented.
+
+Request proofs bind a 128-bit one-time nonce, device ID, time, method (GET/POST), exact API path and SHA-256 body hash using HMAC-SHA256. Verification enforces a 90-second clock-skew limit, strict canonical input shapes, fixed-time MAC comparison, a bounded replay set (fail closed when full), expiry, and explicit revocation. **A future HTTP layer must independently calculate the body hash from the actual bytes, authenticate the TLS client endpoint, enforce Host/Origin/CSRF and never permit remote enrollment.** Possession of the secret alone is not a completed end-to-end security system.
+
+22 negative/positive proof checks were added, bringing the test harness to **115 checks**. They passed on an isolated .NET 10 Linux runtime and in GitHub-hosted Windows/Ubuntu CI for commit `b3a8a58921f03b607b8495c9592ff6209af03347`. No iPhone pairing, browser authentication, physical user approval or LAN listener has been implemented.
+
 ## Decision contract
 
 Inputs:
