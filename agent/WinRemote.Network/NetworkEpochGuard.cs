@@ -24,16 +24,20 @@ public sealed class NetworkEpochGuard : IDisposable
         NetworkBoundaryPolicy.EndpointRequest request,
         NetworkBoundaryPolicy.MachineEvidence evidence)
     {
+        CancellationTokenSource? prior;
+        Lease? lease = null;
         lock (_sync)
         {
-            if (_disposed ||
-                !NetworkBoundaryPolicy.Evaluate(request, evidence).Allowed)
-                return null;
-
-            RevokeLocked();
-            _active = new CancellationTokenSource();
-            return new Lease(_epoch, _active.Token);
+            // Failed revalidation MUST invalidate a previously active epoch.
+            prior = RevokeLocked();
+            if (!_disposed && NetworkBoundaryPolicy.Evaluate(request, evidence).Allowed)
+            {
+                _active = new CancellationTokenSource();
+                lease = new Lease(_epoch, _active.Token);
+            }
         }
+        CancelAndDispose(prior); // Never run user callbacks under the gate lock.
+        return lease;
     }
 
     public bool IsActive(Lease? lease)
@@ -47,52 +51,45 @@ public sealed class NetworkEpochGuard : IDisposable
         }
     }
 
-    /// <summary>Call whenever NIC, network profile, firewall or endpoint state changes,
-    /// becomes unknown, or a monitor fails. Cancellation is immediate; never
-    /// reuse an old epoch without complete revalidation.</summary>
+    /// <summary>On any NIC, network profile, firewall or endpoint change,
+    /// unknown state or monitoring failure: cancel the active lease and
+    /// require fresh complete verification. Never reuse a revoked epoch.</summary>
     public void Invalidate()
     {
-        lock (_sync) RevokeLocked();
+        CancellationTokenSource? prior;
+        lock (_sync) prior = RevokeLocked();
+        CancelAndDispose(prior);
     }
 
-    private void RevokeLocked()
+    private CancellationTokenSource? RevokeLocked()
     {
-        // Guard the epoch against wraparound. This is astronomically unlikely,
-        // but an exception should still fail closed rather than leave an active grant.
         if (_epoch == long.MaxValue)
-        {
             _disposed = true;
-        }
         else
-        {
             _epoch++;
-        }
 
         var previous = _active;
         _active = null;
-        if (previous is null) return;
+        return previous;
+    }
 
-        try
-        {
-            previous.Cancel(throwOnFirstException: false);
-        }
-        catch (AggregateException)
-        {
-            // Untrusted subscriber callbacks cannot prevent revocation.
-        }
-        finally
-        {
-            previous.Dispose();
-        }
+    private static void CancelAndDispose(CancellationTokenSource? previous)
+    {
+        if (previous is null) return;
+        try { previous.Cancel(throwOnFirstException: false); }
+        catch (AggregateException) { /* callback errors cannot restore access */ }
+        finally { previous.Dispose(); }
     }
 
     public void Dispose()
     {
+        CancellationTokenSource? prior;
         lock (_sync)
         {
             _disposed = true;
-            RevokeLocked();
+            prior = RevokeLocked();
         }
+        CancelAndDispose(prior);
     }
 }
 
@@ -113,19 +110,25 @@ public sealed class NetworkEventInvalidator : IDisposable
     {
         if (gate is null || !OperatingSystem.IsWindows()) return null;
         var invalidator = new NetworkEventInvalidator(gate);
+        bool addressHooked = false;
+        bool availabilityHooked = false;
         try
         {
             NetworkChange.NetworkAddressChanged += invalidator.OnAddressChanged;
+            addressHooked = true;
             NetworkChange.NetworkAvailabilityChanged += invalidator.OnAvailabilityChanged;
+            availabilityHooked = true;
             invalidator._registered = true;
-            // Registration itself never sets MachineEvidence.NetworkChangeMonitorActive.
-            // Invalidate any older epoch due to the unmonitored registration gap.
+            // Registration never establishes complete monitoring evidence.
             gate.Invalidate();
             return invalidator;
         }
         catch (Exception)
         {
-            invalidator.Dispose();
+            if (addressHooked)
+                NetworkChange.NetworkAddressChanged -= invalidator.OnAddressChanged;
+            if (availabilityHooked)
+                NetworkChange.NetworkAvailabilityChanged -= invalidator.OnAvailabilityChanged;
             gate.Invalidate();
             return null;
         }
