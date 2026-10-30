@@ -135,6 +135,14 @@ This is **not an authorization-ready HTTP endpoint**. A real ASP.NET Core server
 
 The standalone .NET tests now exercise **206 total checks** (including 32 HTTP request envelope checks and 25 session-limit checks), passing in an isolated Linux .NET 10 runtime. CI on GitHub Windows/Ubuntu for these newest changes is still queued; the actual hosted Windows outcome must be recorded separately before claiming Windows success. G1–G9 practical acceptance has not been reached.
 
+## Local-only 80-bit pairing challenge (G2-C)
+
+`LocalPairingCodeWindow` generates a cryptographically random 16-character RFC4648 Base32 code (10 bytes/80 bits), kept solely in memory and surfaced only by an **assembly-internal Windows-local API**. The challenge expires after two minutes of trusted monotonic runtime, accepts at most five incorrect attempts, forbids code reuse and rejects monotonic rollback. A successful code entry **does not register or authenticate a device**; an independent, explicit PC-side `ConfirmLocally` action must occur, and the challenge is consumed after confirmation. Reissuing or cancelling invalidates prior offers. Code bytes are zeroed when invalidated. A future tray UI must handle display, remote-source throttling, phone identity binding, credential issuance, device revocation and safe storage; none are implemented here.
+
+Together with the request-envelope and session limits, the local .NET harness now has **232 pure-logic checks**; these passed in isolated Linux .NET 10, and the diagnostics project built successfully with 0 warnings/0 errors. GitHub-hosted Windows confirmation for the newest 232-case version is queued. Earlier Windows CI confirmed 149 checks and successful read-only inbound Allow rule inventory; CI/host findings must not be conflated with Windows Home acceptance.
+
+The current repository also includes a proof-of-concept in-memory HMAC request authenticator. The production design instead requires mature framework authentication, CSRF controls, Secure/HttpOnly/SameSite cookies and server-side credential revocation. Neither the pairing window nor the HMAC prototype should be exposed over HTTP before that integration and review.
+
 ## Decision contract
 
 Inputs:
