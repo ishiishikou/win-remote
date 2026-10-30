@@ -25,6 +25,16 @@ The API deliberately returns **false for Windows Private network profile verific
 
 The console harness now covers 39 checks (28 boundary-policy + 11 inventory tests). These checks passed on the Linux development container and on the GitHub-hosted Windows/Ubuntu CI; an actual Windows Home/iPhone connected acceptance test is still pending.
 
+## Read-only Windows network category probe (G3-E)
+
+`WindowsNetworkProfileProbe.ReadForAdapter(Guid)` maps an OS-enumerated NIC GUID to its IPv4 InterfaceIndex and invokes Windows PowerShell's **read-only** `Get-NetConnectionProfile -InterfaceIndex` to query the current network category. The subprocess uses the Windows system PowerShell executable with `-NoProfile`, `-NonInteractive`, a fixed command template, a numeric OS-supplied index, a five-second timeout and strict JSON parsing. It does not use `Set-NetConnectionProfile`, change a Firewall rule, install anything, or listen on a port. It does not print adapter names, SSIDs or addresses.
+
+Only one exact matching `Private` category is reported as observed; `Public`, `DomainAuthenticated`, missing/duplicate/mismatched categories, malformed output, subprocess errors, timeouts and non-Windows platforms all fail closed. A category observation is a **diagnostic prerequisite, not an authorization grant**: this probe does **not** set `IsPrivateProfileVerified` on `MachineEvidence`, does not prove the NIC is physically trusted, and cannot enable a LAN listener. Effective Windows Firewall verification, endpoint inventory, event monitoring and device authentication remain independent unimplemented requirements.
+
+15 negative/positive cases cover category matching, type/schema checking, and rejection of missing/ambiguous evidence. The test harness now has **54 checks** (28 network policy, 11 NIC inventory, 15 network profile). Linux pure-logic execution and GitHub-hosted Windows/Ubuntu CI passed for commit `6e9c4904dcae43ff2c3ce9b180e6a64cd0726df7`. The synthetic category parsing was validated on Windows CI, but a real Windows Home `Get-NetConnectionProfile` read and physical adapter selection have **not** been validated.
+
+Documentation: [Get-NetConnectionProfile](https://learn.microsoft.com/en-us/powershell/module/netconnection/get-netconnectionprofile).
+
 ## Decision contract
 
 Inputs:
@@ -38,7 +48,7 @@ The function rejects missing/ambiguous evidence, IPv6 or non-RFC1918 addresses, 
 
 ## Not yet implemented
 
-- Windows Private profile, physical-versus-virtual NIC attestation, effective Firewall evidence providers and OS event monitoring (raw NIC enumeration only is present)
+- Trusted Windows Private profile-to-adapter attestation, physical-versus-virtual NIC attestation, effective Firewall evidence providers and OS event monitoring (read-only NIC enumeration and separate profile category observation are present; neither authorizes access)
 - Kestrel or a service listener; TLS CA storage and HTTPS authentication/CSRF
 - Registered-device identity, pairing, expiry/revocation, IP churn handling
 - iPhone/Safari/WSS/Windows Home real-device tests
