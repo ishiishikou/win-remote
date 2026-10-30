@@ -123,6 +123,18 @@ This command is present only in an executable built from the newer code; the pre
 
 14 negative/positive parser tests were added, bringing the full harness to **149 checks**. The actual Windows API behavior is separately evaluated through the Windows CI job; the Windows Home PC has not yet run this optional survey.
 
+## Pre-listener HTTP/WS envelope validation (G2-A)
+
+`BrowserRequestBoundary` is assembly-internal, contains no socket or HTTP host, and enforces a strict preflight **for future server-derived request metadata only**. Only literal `https`, exactly the configured canonical IPv4 `Host`, identical HTTPS `Origin`, an authenticated device session, and an active `NetworkEpochGuard` lease can proceed. Supported POST endpoints require same-origin CSRF verification, `application/json`, and at most 64 KiB. WebSocket upgrades require a permitted path, authenticated session, same-origin Origin and a separately issued one-use upgrade ticket. Missing/null/cross-site Origin, wildcard/forwarded authority and revoked network epochs are denied.
+
+This is **not an authorization-ready HTTP endpoint**. A real ASP.NET Core server still needs secure Host header parsing, real TLS validation, validated device cookies, genuine antiforgery token verification and atomic WebSocket ticket issuance/consumption. The `DeviceAuthenticated`, `CsrfVerified` and `OneTimeWebSocketTicketVerified` booleans must **never** come from request JSON, arbitrary headers or caller-controlled flags. The code only gates synthetically verified metadata in test scope. Full authorization requires server-side privilege/session checks independently.
+
+## Monotonic session and elevated-operation limits (G2-B)
+
+`LocalSessionBoundary` is also assembly-internal and does not create an authenticated session. It checks trusted **monotonic clock ages**, not browser-provided timestamps: maximum eight-hour session, 30-minute inactivity timeout based on human interaction alone, and explicit PC-approved Shell/Screen operations in a 15-minute privileged window. The elevated window requires recent strong reauthentication at issuance. Revoke, missing evidence, expired windows, negative or inconsistent clock values and unapproved capabilities all deny. A future host must revoke on clock loss/restart, lock/logoff and missed network-monitor updates; heartbeat and server events must never extend idle time.
+
+The standalone .NET tests now exercise **206 total checks** (including 32 HTTP request envelope checks and 25 session-limit checks), passing in an isolated Linux .NET 10 runtime. CI on GitHub Windows/Ubuntu for these newest changes is still queued; the actual hosted Windows outcome must be recorded separately before claiming Windows success. G1–G9 practical acceptance has not been reached.
+
 ## Decision contract
 
 Inputs:
