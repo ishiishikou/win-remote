@@ -151,6 +151,14 @@ This is **not a WebSocket server, a pairing UI, or an authentication endpoint**.
 
 The console harness includes **272 checks** (232 earlier cases plus 40 one-time-ticket cases including parallel replay, invalid channel and nonprivate endpoint rejection). These were confirmed in an isolated .NET 10 Linux runtime. Windows/Ubuntu GitHub Actions verification for this newest commit must be confirmed separately. Production G1-G9 and real Windows Home/iPhone remote operation are still **not accepted**.
 
+## ASP.NET Core transport-shape verification without a listener (G2-E)
+
+A new separated `WinRemote.Http` library checks a real ASP.NET Core `HttpContext` (currently **in-memory only**) against one expected registered RFC1918 local endpoint and one registered client IPv4. It inspects **Kestrel connection-level local IP/port and remote IP**, literal HTTPS scheme, raw single Host/Origin headers, original request target, and an exact allowlist for `/api/input`, `/api/app`, `/api/files` (POST) and `/ws/terminal`, `/ws/screen` (GET). It rejects reverse-proxy/forwarding headers, query strings (including ticket-in-URL attempts), PathBase, path normalization ambiguities, wrong address/port, multi-value headers and cross-site origins.
+
+The method only returns `transport_shape_only`-style diagnostic evidence; **it is not an authentication or authorization decision**. For future production, Kestrel must be configured without `ForwardedHeaders` or untrusted reverse proxies, bound only to an OS-verified NIC's private IPv4, and combined with verified network epoch, Firewall effective policy, TLS certificate, session cookie, CSRF, one-time WebSocket ticket and per-operation privilege checks. Host+Origin can be forged by non-browser clients. The OS socket's connection properties are more authoritative than request headers but do not prove physical LAN or effective Firewall. Static PWA GET requests are intentionally out of scope and will require a separately audited read-only routing policy.
+
+`WinRemote.Http.Tests` uses `DefaultHttpContext` to simulate actual ASP.NET Core request features without starting Kestrel or opening any socket. **37 in-memory transport checks passed** under .NET 10 on the isolated Linux runtime, together with the existing **272 network/auth checks**, for **309 checks total**. The Windows/Ubuntu CI jobs now build and run both test harnesses; their final outcome must be verified separately. A real Windows Home HTTP host/iPhone remains untested and not enabled.
+
 ## Decision contract
 
 Inputs:
