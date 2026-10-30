@@ -5,15 +5,15 @@
 ## 起動（Windowsでのローカル確認のみ）
 
 1. Pythonが使えるPCでリポジトリを取得。
-2. PowerShellから `cd prototype`。
+2. PowerShellで**リポジトリのルート**に移動（`prototype` 内には移動しない）。
 3. `python -m http.server 8765 --bind 127.0.0.1`。
-4. **同じWindowsの**ブラウザで `http://127.0.0.1:8765/` を開く。画面幅を375px程度にして確認。
+4. **同じWindowsの**ブラウザで `http://127.0.0.1:8765/prototype/` を開く。画面幅を375px程度にして確認。Service Workerは `/prototype/` 以下だけに登録します。
 5. 終わったらCtrl+Cでサーバー停止。
 
 `--bind 127.0.0.1` はPC自身からしかアクセスできない設定です。**iPhoneから見たいからといって `0.0.0.0` へ変更したり、HTTPをLANへ開放したりしないでください。** iPhoneへの提供は後続のTLS/認証/LAN制限（G1〜G3）が通過してから行います。
 
 ## デモ専用PWAシェル（本接続とは完全に別）
-- `manifest.webmanifest`、`pwa.js`、`sw.js` とSVGアイコンを追加。localhost/HTTPSなどのsecure contextでだけデモ用Service Workerを登録し、**このデモの固定7資産だけ**をオフライン保存します。Windows Agent/APIや外部URLをキャッシュ・中継しません。
+- `manifest.webmanifest`、`pwa.js`、`sw.js` とSVGアイコンを追加。localhost/HTTPSなどのsecure contextかつURLが `/prototype/` または `/prototype/index.html` のときだけデモ用Service Workerを登録し、**このデモの固定7資産だけ**をオフライン保存します。Windows Agent/APIや外部URLをキャッシュ・中継しません。
 - インストールとオフライン表示は **iPhone/Safari実機で未検証** です。SVGのみのアイコンがiOSで正しく表示されることも未保証です。実用PWAの証明書・登録・WSSは後続のG1〜G3が必要です。
 - Service Workerはデモのスコープだけで使い、認証済みAgentと同じスコープに配備しないでください。後続の本接続では別のキャッシュ方針をセキュリティレビューしてから採用します。
 - 開発時に古い画面が残る場合はブラウザのサイトデータからデモのService Workerとキャッシュを削除してください。通常のHTTP LAN公開でiPhoneから動作確認しないでください。
