@@ -390,4 +390,44 @@ BaselineCheck("huge output rejected", !Baseline(new string('A', 4097)));
 BaselineCheck("real OS query cannot be misinterpreted as authorization",
     !Evaluate(request, WindowsAdapterInventory.BuildUnverified([observed])).Allowed);
 
-Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile + firewall + epoch + auth + firewall baseline).");
+// Coarse ActiveStore allow rule counts are informational only, not proof
+// of actual permitted WFP traffic or scoped iPhone access.
+void SurveyCheck(string name, bool condition)
+{
+    if (!condition) throw new Exception("Inbound allow survey failed: " + name);
+    Console.WriteLine("PASS inbound survey " + name);
+    passed++;
+}
+const string countsJson = """{"EnabledInboundAllowRules":8,"PrivateApplicableRules":3,"WildcardRemoteRules":1,"UnclassifiedRules":1}""";
+var counts = WindowsInboundAllowInventory.Parse(countsJson);
+SurveyCheck("consistent non-identifying counts observed",
+    counts.Observed && counts.EnabledInboundAllowRules == 8 &&
+    counts.PrivateApplicableRules == 3 && counts.WildcardRemoteRules == 1);
+SurveyCheck("zero rules is informational, not a grant",
+    WindowsInboundAllowInventory.Parse(
+        """{"EnabledInboundAllowRules":0,"PrivateApplicableRules":0,"WildcardRemoteRules":0,"UnclassifiedRules":0}""").Observed);
+SurveyCheck("missing JSON field denied", !WindowsInboundAllowInventory.Parse(
+    countsJson.Replace("\"UnclassifiedRules\":1", "")).Observed);
+SurveyCheck("negative count denied", !WindowsInboundAllowInventory.Parse(
+    countsJson.Replace("\"EnabledInboundAllowRules\":8", "\"EnabledInboundAllowRules\":-1")).Observed);
+SurveyCheck("fractional count denied", !WindowsInboundAllowInventory.Parse(
+    countsJson.Replace("\"EnabledInboundAllowRules\":8", "\"EnabledInboundAllowRules\":8.5")).Observed);
+SurveyCheck("string count denied", !WindowsInboundAllowInventory.Parse(
+    countsJson.Replace("\"EnabledInboundAllowRules\":8", "\"EnabledInboundAllowRules\":\"8\"")).Observed);
+SurveyCheck("private count cannot exceed total", !WindowsInboundAllowInventory.Parse(
+    countsJson.Replace("\"PrivateApplicableRules\":3", "\"PrivateApplicableRules\":9")).Observed);
+SurveyCheck("wildcard cannot exceed private count", !WindowsInboundAllowInventory.Parse(
+    countsJson.Replace("\"WildcardRemoteRules\":1", "\"WildcardRemoteRules\":4")).Observed);
+SurveyCheck("unknown cannot exceed private count", !WindowsInboundAllowInventory.Parse(
+    countsJson.Replace("\"UnclassifiedRules\":1", "\"UnclassifiedRules\":4")).Observed);
+SurveyCheck("wildcard plus unknown cannot exceed private count",
+    !WindowsInboundAllowInventory.Parse(countsJson
+        .Replace("\"WildcardRemoteRules\":1", "\"WildcardRemoteRules\":2")
+        .Replace("\"UnclassifiedRules\":1", "\"UnclassifiedRules\":2")).Observed);
+SurveyCheck("unexpected array JSON denied", !WindowsInboundAllowInventory.Parse("[" + countsJson + "]").Observed);
+SurveyCheck("malformed JSON denied", !WindowsInboundAllowInventory.Parse("{").Observed);
+SurveyCheck("oversized JSON denied", !WindowsInboundAllowInventory.Parse(new string('x', 2049)).Observed);
+SurveyCheck("no survey can set effective Firewall permission",
+    !Evaluate(request, WindowsAdapterInventory.BuildUnverified([observed])).Allowed);
+
+Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile + firewall + epoch + auth + firewall baseline + inbound survey).");
