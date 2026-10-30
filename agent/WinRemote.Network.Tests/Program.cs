@@ -696,11 +696,14 @@ TicketCheck("wrong session rejected",
     !ConsumeTicket(wrongContextTicket.Secret, sessionId: Guid.NewGuid()));
 TicketCheck("wrong Origin rejected",
     !ConsumeTicket(wrongContextTicket.Secret, origin: "https://evil.invalid"));
-TicketCheck("wrong channel rejected",
-    !ConsumeTicket(wrongContextTicket.Secret,
-        requestedChannel: OneTimeWebSocketTicketRegistry.Channel.Screen));
-TicketCheck("correct holder still accepted before fifth failed attempt",
+TicketCheck("correct holder still accepted after three invalid-context attempts",
     ConsumeTicket(wrongContextTicket.Secret));
+var wrongChannelTicket = IssueTicket()!;
+TicketCheck("wrong channel rejected",
+    !ConsumeTicket(wrongChannelTicket.Secret,
+        requestedChannel: OneTimeWebSocketTicketRegistry.Channel.Screen));
+TicketCheck("unapproved channel attempt revokes pending token",
+    !ConsumeTicket(wrongChannelTicket.Secret));
 var expiringTicket = IssueTicket()!;
 TicketCheck("expiry exactly at thirty seconds rejected",
     !ConsumeTicket(expiringTicket.Secret, ticketClock + TimeSpan.FromSeconds(30)));
