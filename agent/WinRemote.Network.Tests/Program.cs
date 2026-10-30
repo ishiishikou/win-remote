@@ -518,4 +518,67 @@ BrowserCheck("revoked network epoch closes valid POST", false, WebGate(browserPo
 BrowserCheck("revoked network epoch closes valid WSS", false, WebGate(webSocket));
 BrowserCheck("null envelope rejected", false, WebGate(null));
 
-Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile + firewall + epoch + auth + firewall baseline + inbound survey + browser envelope).");
+// Local Windows-host session time measurements must use a monotonic source.
+// A browser-supplied timestamp cannot grant access or extend a session.
+void SessionCheck(string name, bool allowed, LocalSessionBoundary.Decision result)
+{
+    if (result.Allowed != allowed)
+        throw new Exception("Session boundary " + name + ": " + result.Reason);
+    Console.WriteLine("PASS session " + name + ": " + result.Reason);
+    passed++;
+}
+var normal = new LocalSessionBoundary.MonotonicSnapshot(
+    TimeSpan.FromHours(1), TimeSpan.FromMinutes(5),
+    SessionRevoked: false, PcLocallyApprovedShell: true,
+    PcLocallyApprovedScreen: false,
+    PrivilegeWindowAge: TimeSpan.FromMinutes(3),
+    ReauthAgeWhenWindowOpened: TimeSpan.FromMinutes(1));
+LocalSessionBoundary.Decision Session(LocalSessionBoundary.MonotonicSnapshot? snapshot,
+    LocalSessionBoundary.Capability type = LocalSessionBoundary.Capability.Read) =>
+    LocalSessionBoundary.Evaluate(snapshot, type);
+SessionCheck("normal read allowed within session", true, Session(normal));
+SessionCheck("normal input allowed within session", true, Session(normal, LocalSessionBoundary.Capability.Input));
+SessionCheck("shell allowed only within explicit PC approval", true, Session(normal, LocalSessionBoundary.Capability.Shell));
+SessionCheck("screen not approved by PC denied", false, Session(normal, LocalSessionBoundary.Capability.Screen));
+SessionCheck("revoked session denied", false, Session(normal with { SessionRevoked = true }));
+SessionCheck("missing session denied", false, Session(null));
+SessionCheck("eight hour boundary denied", false,
+    Session(normal with { SessionAge = TimeSpan.FromHours(8) }));
+SessionCheck("just before eight hours still valid", true,
+    Session(normal with { SessionAge = TimeSpan.FromHours(8) - TimeSpan.FromTicks(1) }));
+SessionCheck("idle thirty minute boundary denied", false,
+    Session(normal with { SinceLastHumanAction = TimeSpan.FromMinutes(30) }));
+SessionCheck("idle just before deadline remains valid", true,
+    Session(normal with { SinceLastHumanAction = TimeSpan.FromMinutes(30) - TimeSpan.FromTicks(1) }));
+SessionCheck("negative session age rejected", false,
+    Session(normal with { SessionAge = TimeSpan.FromSeconds(-1) }));
+SessionCheck("negative idle age rejected", false,
+    Session(normal with { SinceLastHumanAction = TimeSpan.FromSeconds(-1) }));
+SessionCheck("idle age greater than session age rejected", false,
+    Session(normal with { SinceLastHumanAction = TimeSpan.FromHours(2) }));
+SessionCheck("no Shell PC approval denied", false,
+    Session(normal with { PcLocallyApprovedShell = false }, LocalSessionBoundary.Capability.Shell));
+SessionCheck("Screen approved with window allowed", true,
+    Session(normal with { PcLocallyApprovedScreen = true }, LocalSessionBoundary.Capability.Screen));
+SessionCheck("missing privilege window denied", false,
+    Session(normal with { PrivilegeWindowAge = null }, LocalSessionBoundary.Capability.Shell));
+SessionCheck("privileged fifteen-minute limit enforced", false,
+    Session(normal with { PrivilegeWindowAge = TimeSpan.FromMinutes(15) }, LocalSessionBoundary.Capability.Shell));
+SessionCheck("privileged just before deadline valid", true,
+    Session(normal with { PrivilegeWindowAge = TimeSpan.FromMinutes(15) - TimeSpan.FromTicks(1) }, LocalSessionBoundary.Capability.Shell));
+SessionCheck("negative privilege age rejected", false,
+    Session(normal with { PrivilegeWindowAge = TimeSpan.FromSeconds(-1) }, LocalSessionBoundary.Capability.Shell));
+SessionCheck("privilege window beyond session age rejected", false,
+    Session(normal with { SessionAge = TimeSpan.FromMinutes(1) }, LocalSessionBoundary.Capability.Shell));
+SessionCheck("stale reauth at window opening rejected", false,
+    Session(normal with { ReauthAgeWhenWindowOpened = TimeSpan.FromMinutes(6) }, LocalSessionBoundary.Capability.Shell));
+SessionCheck("missing reauth evidence rejected", false,
+    Session(normal with { ReauthAgeWhenWindowOpened = null }, LocalSessionBoundary.Capability.Shell));
+SessionCheck("negative reauth age rejected", false,
+    Session(normal with { ReauthAgeWhenWindowOpened = TimeSpan.FromSeconds(-1) }, LocalSessionBoundary.Capability.Shell));
+SessionCheck("unknown capability denied", false,
+    Session(normal, (LocalSessionBoundary.Capability)99));
+SessionCheck("session revoke also denies Shell", false,
+    Session(normal with { SessionRevoked = true }, LocalSessionBoundary.Capability.Shell));
+
+Console.WriteLine($"NetworkBoundaryPolicy: {passed} checks passed (policy + NIC + profile + firewall + epoch + auth + baseline + survey + HTTP + session).");
