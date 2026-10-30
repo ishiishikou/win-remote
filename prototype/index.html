@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#075e57">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'; connect-src 'none'; object-src 'none'; frame-ancestors 'none'">
+  <title>win-remote UI デモ</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <div class="demo-banner" role="note">設計デモ — Windowsには接続していません</div>
+    <header class="topbar"><span>自宅PC（表示例）</span><span class="status">● 未接続 / デモ</span></header>
+    <main id="main" tabindex="-1">
+      <section class="view is-active" id="home" aria-labelledby="home-heading">
+        <h1 id="home-heading">何をしますか</h1><p class="sub">よく使う操作を、ここから。</p>
+        <div class="quick">
+          <button type="button" class="tile" data-mock="Chromeを開く">Chromeを開く<small>登録したアプリ</small></button>
+          <button type="button" class="tile" data-mock="メモ帳を開く">メモ帳を開く<small>登録したアプリ</small></button>
+          <button type="button" class="tile" data-view="files">ファイルを見る<small>Remoteフォルダ</small></button>
+          <button type="button" class="tile" data-view="input">文字を送る<small>iPhoneで編集</small></button>
+        </div>
+        <h2>開いているアプリ（例）</h2>
+        <div class="item"><div><strong>Chrome</strong><small>調べもの</small></div><button data-mock="Chromeに切り替え">切り替え</button></div>
+        <div class="item"><div><strong>メモ帳</strong><small>買い物メモ</small></div><button data-mock="メモ帳に切り替え">切り替え</button></div>
+        <h2>前回の作業</h2><p class="sub">ドキュメント / Remote（表示例）</p>
+      </section>
+      <section class="view" id="apps" aria-labelledby="apps-heading" hidden>
+        <h1 id="apps-heading">開いているアプリ</h1><p class="sub">ウィンドウ単位で切り替えます。</p>
+        <label class="label" for="app-search">アプリを検索（デモ）</label><input id="app-search" placeholder="アプリ・ウィンドウを検索" autocomplete="off">
+        <div class="app-list">
+          <article class="app-card" data-app-name="chrome 調べもの"><h2>Chrome</h2><p class="sub">調べもの · 前面（表示例）</p><div class="actions"><button class="primary" data-mock="Chromeに切り替え">切り替え</button><button data-view="input">文字を送る</button></div></article>
+          <article class="app-card" data-app-name="メモ帳 買い物メモ"><h2>メモ帳</h2><p class="sub">買い物メモ</p><div class="actions"><button class="primary" data-mock="メモ帳に切り替え">切り替え</button><button data-view="screen">画面で見る</button></div></article>
+          <article class="app-card" data-app-name="エクスプローラー remote"><h2>エクスプローラー</h2><p class="sub">Remote</p><div class="actions"><button data-mock="Explorerに切り替え">切り替え</button><button data-view="files">ファイルを見る</button></div></article>
+        </div>
+      </section>
+      <section class="view" id="files" aria-labelledby="files-heading" hidden>
+        <h1 id="files-heading">Remote</h1><p class="sub">登録フォルダ / ドキュメント（表示例）</p>
+        <label class="label" for="file-search">このフォルダ内を検索（デモ）</label><input id="file-search" placeholder="ファイル名で検索" autocomplete="off">
+        <div class="file-list">
+          <div class="item" data-file-name="資料"><div><strong>▣ 資料</strong><small>フォルダ</small></div><button data-mock="資料フォルダを開く">開く</button></div>
+          <div class="item" data-file-name="写真"><div><strong>▣ 写真</strong><small>フォルダ</small></div><button data-mock="写真フォルダを開く">開く</button></div>
+          <div class="item" data-file-name="買い物メモ.txt"><div><strong>▤ 買い物メモ.txt</strong><small>2 KB</small></div><button data-mock="ファイル操作">操作</button></div>
+          <div class="item" data-file-name="design.md"><div><strong>▤ design.md</strong><small>8 KB</small></div><button data-mock="ファイル操作">操作</button></div>
+        </div>
+        <div class="actions top-space"><button class="primary" data-mock="iPhoneから追加">iPhoneから追加</button><button data-mock="新規作成">新規作成</button></div>
+        <p class="sub">名前変更・コピー・移動・ごみ箱操作は、対象を選択して実行する予定です。</p>
+      </section>
+      <section class="view" id="terminal" aria-labelledby="terminal-heading" hidden>
+        <h1 id="terminal-heading">PowerShell</h1><p class="sub">作業場所: Remote · 通常ユーザー（表示例）</p>
+        <pre class="term" aria-label="ダミーのPowerShell出力">自由なシェルは未接続です
+
+PS&gt; Get-ChildItem
+資料
+写真
+買い物メモ.txt
+design.md
+
+PS&gt; ▋</pre>
+        <label for="command" class="label">コマンド（実行はされません）</label><textarea rows="2" id="command" spellcheck="false" placeholder="例: Get-ChildItem"></textarea>
+        <div class="keys" aria-label="補助キーの見本"><span>Esc</span><span>Tab</span><span>Ctrl</span><span>↑</span><span>↓</span><span>←</span><span>→</span></div>
+        <div class="actions"><button data-mock="Ctrl+Cで中断">中断 Ctrl+C</button><button class="primary" data-mock="PowerShellコマンドを実行">実行</button></div>
+      </section>
+      <section class="view" id="screen" aria-labelledby="screen-heading" hidden>
+        <h1 id="screen-heading">画面で確認</h1><p class="sub">画面転送は未実装 · モニター1（模式図）</p>
+        <div class="desktop"><div class="window"><div class="window-title">メモ帳</div><p>変更を保存しますか？</p><div class="actions"><span>保存</span><span>保存しない</span><span>キャンセル</span></div></div></div>
+        <div class="actions"><button data-mock="縮小">−</button><button data-mock="表示を合わせる">表示を合わせる</button><button data-mock="拡大">＋</button></div>
+        <div class="trackpad"><strong>トラックパッド（模式図）</strong><small>1本指で移動 / 2本指でスクロール</small></div>
+        <div class="actions"><button data-mock="左クリック">左クリック</button><button data-mock="右クリック">右クリック</button></div>
+        <div class="actions"><button data-view="input">文字入力</button><button class="danger" data-mock="画面転送終了">画面を終了</button></div>
+      </section>
+      <section class="view" id="input" aria-labelledby="input-heading" hidden>
+        <h1 id="input-heading">iPhoneで書く</h1>
+        <div class="target"><small>送信先（表示例）</small><strong>メモ帳 — 買い物メモ</strong></div>
+        <label for="draft" class="label">テキストを編集</label>
+        <textarea id="draft" rows="8" placeholder="日本語で入力できます"></textarea>
+        <p class="sub">文字列を送る操作とEnterを分けます。デモでは送信しません。</p>
+        <div class="actions"><button data-mock="Enterを送信">Enter</button><button class="primary" id="simulate-send">文字を送る（デモ）</button></div>
+        <button id="back" class="back" type="button">前の画面に戻る</button>
+      </section>
+    </main>
+    <nav class="nav" aria-label="画面の切り替え">
+      <button type="button" class="active" data-view="home" aria-current="page">ホーム</button>
+      <button type="button" data-view="apps">アプリ</button>
+      <button type="button" data-view="files">ファイル</button>
+      <button type="button" data-view="terminal">端末</button>
+      <button type="button" data-view="screen">画面</button>
+    </nav>
+    <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+  </div>
+</body>
+</html>
