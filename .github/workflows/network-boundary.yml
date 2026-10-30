@@ -37,6 +37,10 @@ jobs:
         run: dotnet build agent/WinRemote.Network.Tests/WinRemote.Network.Tests.csproj --configuration Release --nologo
       - name: Execute all positive and negative boundary checks
         run: dotnet run --project agent/WinRemote.Network.Tests/WinRemote.Network.Tests.csproj --configuration Release --no-build
+      - name: Build in-memory ASP.NET Core transport harness
+        run: dotnet build agent/WinRemote.Http.Tests/WinRemote.Http.Tests.csproj --configuration Release --nologo
+      - name: Verify HTTP transport spoofing negatives (no listener)
+        run: dotnet run --project agent/WinRemote.Http.Tests/WinRemote.Http.Tests.csproj --configuration Release --no-build
       - name: Build read-only diagnostics
         run: dotnet build agent/WinRemote.Diagnostics/WinRemote.Diagnostics.csproj --configuration Release --nologo
       - name: Execute Windows diagnostic smoke (no network changes)
