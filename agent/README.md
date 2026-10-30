@@ -15,7 +15,15 @@ No external NuGet packages or cloud services are required for these two projects
 
 **Verification as of 2026-10-30:** GitHub branch `feat/g3-network-boundary` source files were fetched through the GitHub connector into a dedicated Linux (Alpine 3.24) test directory. After installing .NET 10 SDK 10.0.303 in the test container, `dotnet build agent/WinRemote.Network.Tests/WinRemote.Network.Tests.csproj --configuration Release --nologo --ignore-failed-sources` succeeded with **0 warnings / 0 errors**, and `dotnet run --project agent/WinRemote.Network.Tests/WinRemote.Network.Tests.csproj --configuration Release --no-build` completed with **28 checks passed / exit code 0**. No Windows Home system or Firewall settings were changed. This verifies .NET policy logic on Linux only; **G3 is not passed** without Windows OS evidence and fail-closed runtime integration testing.
 
-A GitHub Actions Windows/Linux workflow was added, but the first hosted-runner run [#41068584932](https://github.com/ishiishikou/win-remote/actions/runs/41068584932) failed at runner startup before any steps or logs. It is **not evidence of code test failure or of Windows success**. To avoid repeated failed runs and potential private-repository minutes consumption, `.github/workflows/network-boundary.yml` is manual-only (`workflow_dispatch`) until the runner/platform issue is understood. The Windows OS build/test remains outstanding.
+After the repository became public, GitHub Actions was restored for push and pull requests using read-only permissions. In [PR run #41090285059](https://github.com/ishiishikou/win-remote/actions/runs/41090285059), both Windows and Ubuntu jobs completed the .NET 10 build and console-check steps successfully. The earlier private-runner startup failures are historical; Windows OS adapter/profile/Firewall integration acceptance **is not verified** by GitHub-hosted CI.
+
+## Read-only Windows NIC inventory (G3-D)
+
+`WindowsAdapterInventory.CaptureUnverified()` uses Windows .NET `NetworkInterface` APIs to read adapter GUIDs, operational status, interface type, and canonical IPv4 unicast addresses/prefix lengths. It **never opens a listener**, modifies a firewall or network profile, or reads secrets. Errors, missing/duplicate adapter IDs, duplicate addresses, malformed IPv4 and invalid prefixes yield a rejected/empty inventory. On non-Windows hosts, the inventory is empty.
+
+The API deliberately returns **false for Windows Private network profile verification, effective Firewall rule verification, additional-endpoint verification and change-monitor state**. A raw `Ethernet`/`Wireless80211` type is not proof the NIC is physical or on a trusted LAN. A future trusted Windows profile/Firewall collector must supply independent evidence; until then, `NetworkBoundaryPolicy.Evaluate()` rejects every collected OS snapshot. No remote caller or config can set those verification flags as a substitute for OS inspection.
+
+The console harness now covers 39 checks (28 boundary-policy + 11 inventory tests). These checks passed on the Linux development container and on the GitHub-hosted Windows/Ubuntu CI; an actual Windows Home/iPhone connected acceptance test is still pending.
 
 ## Decision contract
 
@@ -30,7 +38,7 @@ The function rejects missing/ambiguous evidence, IPv6 or non-RFC1918 addresses, 
 
 ## Not yet implemented
 
-- Trusted Windows adapters/profile/Firewall evidence providers and OS event monitoring
+- Windows Private profile, physical-versus-virtual NIC attestation, effective Firewall evidence providers and OS event monitoring (raw NIC enumeration only is present)
 - Kestrel or a service listener; TLS CA storage and HTTPS authentication/CSRF
 - Registered-device identity, pairing, expiry/revocation, IP churn handling
 - iPhone/Safari/WSS/Windows Home real-device tests
